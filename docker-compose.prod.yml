@@ -1,0 +1,25 @@
+services:
+  frontend:
+    ports: !reset []
+  backend:
+    environment:
+      COOKIE_SECURE: "true"
+      ALLOWED_ORIGINS: https://${DOMAIN:?Configure DOMAIN}
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Configure DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:
