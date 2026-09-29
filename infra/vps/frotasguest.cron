@@ -1,0 +1,4 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 3 * * * root /opt/frotasguest/scripts/backup.sh >> /opt/frotasguest/logs/backup.log 2>&1
+41 4,16 * * * root /opt/frotasguest/scripts/renew-cert.sh >> /opt/frotasguest/logs/renew-cert.log 2>&1

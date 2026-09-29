@@ -1,0 +1,73 @@
+name: frotasguest
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+services:
+  frotasguest-postgres:
+    image: postgres:16-alpine
+    container_name: frotasguest-postgres
+    environment:
+      POSTGRES_DB: frotasguest
+      POSTGRES_USER: frotasguest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+    volumes:
+      - /opt/frotasguest/data/postgres:/var/lib/postgresql/data
+    networks: [frotasguest]
+    restart: unless-stopped
+    logging: *logs
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U frotasguest -d frotasguest']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  frotasguest-api:
+    build: ./app/backend
+    image: frotasguest-api:${APP_VERSION:?Required}
+    container_name: frotasguest-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://frotasguest:${POSTGRES_PASSWORD}@frotasguest-postgres:5432/frotasguest
+      COOKIE_SECURE: 'true'
+      ALLOWED_ORIGINS: https://frotasguest.duckdns.org
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - /opt/frotasguest/data/uploads:/app/uploads
+    networks:
+      frotasguest:
+        aliases: [backend]
+    depends_on:
+      frotasguest-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logs
+    mem_limit: 768m
+    cpus: 0.75
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health")']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  frotasguest-frontend:
+    build: ./app/frontend
+    image: frotasguest-frontend:${APP_VERSION:?Required}
+    container_name: frotasguest-frontend
+    ports: ['127.0.0.1:8060:80']
+    networks: [frotasguest]
+    depends_on:
+      frotasguest-api:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logs
+    mem_limit: 128m
+    cpus: 0.25
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+networks:
+  frotasguest:
+    name: frotasguest-network

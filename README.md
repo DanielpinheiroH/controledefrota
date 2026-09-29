@@ -2,6 +2,8 @@
 
 MVP para manutenção de caminhões: React/TypeScript mobile-first, FastAPI e PostgreSQL. Inclui login, frota, KM, oficinas, manutenção com peças/serviços, preventivas, alertas, custos, XLSX, documentos, auditoria e PWA.
 
+Produção: **https://frotasguest.duckdns.org**. Operação da VPS compartilhada em [README de produção](infra/vps/README-PRODUCAO.md), usando o Nginx existente e o Compose exclusivo em `/opt/frotasguest`. O override Caddy abaixo é somente uma alternativa para servidores novos; não deve ser usado nesta VPS.
+
 ## Iniciar com Docker — Windows
 
 Requisitos: Docker Desktop iniciado (containers Linux), Docker Compose 2.24.4+ e porta 8088 disponível. Execute na raiz do repositório:

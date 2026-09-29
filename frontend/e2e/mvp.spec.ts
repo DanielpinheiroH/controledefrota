@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const credentials = JSON.parse(
-  readFileSync(resolve("../.validation/e2e-credentials.json"), "utf8"),
+    readFileSync(resolve(process.env.E2E_CREDENTIALS || "../.validation/e2e-credentials.json"), "utf8"),
 );
 async function login(page: Page) {
   await page.goto("/");
@@ -44,7 +44,7 @@ test("complete preventive flow, forms, documents, costs and persistent history",
   const plate = `TST${code[0]}${testInfo.project.name === "mobile" ? "M" : "D"}${code.slice(2)}`;
   await page.goto("/frota/novo");
   await page.getByLabel("Placa *", { exact: true }).fill(plate);
-  await page.getByLabel("Marca *", { exact: true }).fill("Scania");
+  await page.getByLabel("Marca *", { exact: true }).fill("TESTE E2E Scania");
   await page.getByLabel("Modelo *", { exact: true }).fill("R450");
   await page.getByLabel("Quilometragem inicial").fill("325000");
   await save(page);
@@ -249,6 +249,7 @@ test('reader account can consult but cannot write from UI or API', async ({page}
   await page.getByRole('button',{name:'Criar usuário'}).click();
   await expect(page.getByText(email,{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Sair',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Entrar no FrotaGest'})).toBeVisible();
   await page.getByLabel('E-mail',{exact:true}).fill(email);
   await page.getByLabel('Senha',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Entrar no FrotaGest'}).click();

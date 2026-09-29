@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-const credentials=JSON.parse(readFileSync(resolve('../.validation/e2e-credentials.json'),'utf8'));
+const credentials=JSON.parse(readFileSync(resolve(process.env.E2E_CREDENTIALS || '../.validation/e2e-credentials.json'),'utf8'));
 
 test('200000 stays exact, workshop is typed and totals update before save',async({page},info)=>{
   await page.goto('/');
@@ -13,7 +13,7 @@ test('200000 stays exact, workshop is typed and totals update before save',async
   const n=String(Date.now()).slice(-4);
   const plate=`KM${info.project.name==='mobile'?'M':'D'}${n}`;
   await page.getByLabel('Placa *',{exact:true}).fill(plate);
-  await page.getByLabel('Marca *',{exact:true}).fill('Scania');
+  await page.getByLabel('Marca *',{exact:true}).fill('TESTE E2E Scania');
   await page.getByLabel('Modelo *',{exact:true}).fill('R450');
   const mileage=page.getByLabel('Quilometragem inicial');
   await mileage.fill('');
