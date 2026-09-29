@@ -18,6 +18,12 @@ URL: https://frotasguest.duckdns.org. VPS srv1569990 (72.60.61.34), Ubuntu 24.04
 
 Credenciais não constam neste documento nem no Git. ADMIN inicial em arquivo privado `admin-access.json` na raiz exclusiva da VPS. Documentação operacional: [README de produção](../infra/vps/README-PRODUCAO.md).
 
-## Limites
+## Conferência final
+
+Release em execução: `89ffdccda150c28d6e3ba45b670f0cf71b64b58b`. API/frontend recriados somente neste projeto; contagens das 12 tabelas e hashes dos anexos idênticos ao snapshot anterior. Mais 2 execuções desktop/mobile aprovaram login com o ADMIN definitivo, relatórios, anexos e segurança nessa release. Backup final: `20260929T203627Z`.
+
+Na segunda comparação, `sistema_veiculacoes_backend` apresentou novo ID e início às 20:30 UTC. O usuário confirmou atualização em outra sessão em paralelo. Esse container está saudável e o site respondeu HTTP 200. Não foi alterado por este deploy. Os outros containers mantiveram suas identidades e os arquivos anteriores do Nginx mantiveram seus hashes. A afirmação de identidades preservadas acima corresponde à primeira comparação, anterior à atualização paralela.
+
+## Pendências operacionais
 
 Instalação e abertura standalone em Android físico exigem confirmação do usuário. Não há APK nem dados de frota offline. Backup externo ainda depende de destino; backups locais não cobrem perda total da VPS. Nenhum erro funcional bloqueante conhecido nos fluxos validados. Não houve parada/recriação de containers alheios, modificação de firewall, remoção de volumes ou reboot da VPS.
