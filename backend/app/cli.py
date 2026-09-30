@@ -20,8 +20,8 @@ def main():
             email = (args.email or input('E-mail: ')).strip().lower()
             if '@' not in email or db.scalar(select(User).where(User.email == email)):
                 raise SystemExit('E-mail inválido ou já cadastrado')
-            password = getpass.getpass('Senha (mínimo 12 caracteres): ')
-            if len(password) < 12 or len(password) > 128 or password != getpass.getpass('Confirme a senha: '):
+            password = getpass.getpass('Senha (mínimo 8 caracteres): ')
+            if len(password) < 8 or len(password) > 128 or password != getpass.getpass('Confirme a senha: '):
                 raise SystemExit('Senha inválida ou confirmação diferente')
             db.add(User(name=args.name, email=email, password_hash=password_hash.hash(password), role='ADMIN'))
             db.commit()

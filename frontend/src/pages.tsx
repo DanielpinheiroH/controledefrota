@@ -1028,11 +1028,11 @@ export function UsersPage() {
           <Field label="E-mail">
             <input name="email" type="email" required />
           </Field>
-          <Field label="Senha inicial (mínimo 12 caracteres)">
+          <Field label="Senha inicial (mínimo 8 caracteres)">
             <input
               name="password"
               type="password"
-              minLength={12}
+              minLength={8}
               maxLength={128}
               autoComplete="new-password"
               required

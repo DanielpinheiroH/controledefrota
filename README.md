@@ -15,7 +15,7 @@ docker compose exec backend alembic current
 docker compose exec backend python -m app.cli create-admin --email seu-email@empresa.com.br --name "Administrador"
 ```
 
-A senha é solicitada de forma interativa, sem aparecer no terminal; mínimo de 12 caracteres. Não há senha padrão. O script preserva `.env` existente e gera senha aleatória para PostgreSQL quando ainda não existe. `.env` não deve ser versionado.
+A senha é solicitada de forma interativa, sem aparecer no terminal; mínimo de 8 caracteres. Não há senha padrão. O script preserva `.env` existente e gera senha aleatória para PostgreSQL quando ainda não existe. `.env` não deve ser versionado.
 
 Acesse **http://localhost:8088**. API/Swagger: **http://localhost:8088/api/docs**. Saúde: `/api/health`.
 

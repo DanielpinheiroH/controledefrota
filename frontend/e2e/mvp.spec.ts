@@ -245,7 +245,7 @@ test('reader account can consult but cannot write from UI or API', async ({page}
   const password=randomUUID();
   await page.getByLabel('Nome',{exact:true}).fill('Consulta de validação');
   await page.getByLabel('E-mail',{exact:true}).fill(email);
-  await page.getByLabel('Senha inicial (mínimo 12 caracteres)').fill(password);
+  await page.getByLabel('Senha inicial (mínimo 8 caracteres)').fill(password);
   await page.getByRole('button',{name:'Criar usuário'}).click();
   await expect(page.getByText(email,{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Sair',exact:true}).click();

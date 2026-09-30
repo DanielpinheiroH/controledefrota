@@ -3,6 +3,16 @@ from io import BytesIO
 from pypdf import PdfWriter
 from test_flows import truck, maintenance
 
+def test_user_password_minimum_eight(admin):
+    data={'email':'eight@example.test','name':'Eight','role':'ADMIN','password':'Test123'}
+    assert admin.post('/api/users',json=data).status_code==422
+    data['password']='Test1234'
+    assert admin.post('/api/users',json=data).status_code==201
+    admin.post('/api/auth/logout')
+    result=admin.post('/api/auth/login',json={'email':data['email'],'password':data['password']})
+    assert result.status_code==200
+    assert result.json()['role']=='ADMIN'
+
 def test_active_pdf_rejected(admin):
     t=truck(admin)
     pdf=PdfWriter();pdf.add_blank_page(width=100,height=100);pdf.add_js('app.alert("test")')

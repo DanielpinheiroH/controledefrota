@@ -24,7 +24,7 @@ class Login(Input):
 class UserInput(Login):
     name: str = Field(min_length=1, max_length=120)
     role: Literal['ADMIN', 'USUARIO'] = 'USUARIO'
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
 
 class TruckInput(Input):
     plate: str
