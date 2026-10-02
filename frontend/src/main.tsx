@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -43,6 +43,7 @@ import {
   WorkshopForm,
 } from "./forms";
 import "./style.css";
+import {readRememberedEmail, rememberEmail, offerPasswordSave, rememberedPassword} from './rememberLogin';
 
 const Auth = createContext<User | null>(null);
 export const useUser = () => useContext(Auth)!;
@@ -53,6 +54,21 @@ function App() {
     [busy, setBusy] = useState(false),
     [quick, setQuick] = useState(false);
   const navigate = useNavigate();
+  const [savedEmail, setSavedEmail] = useState(readRememberedEmail);
+  const [remember, setRemember] = useState(() => Boolean(readRememberedEmail()));
+  const emailInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (ready && !user && remember && savedEmail) {
+      void rememberedPassword(savedEmail).then(password => {
+        if (!cancelled && password && emailInput.current?.value.toLowerCase() === savedEmail.toLowerCase() && passwordInput.current && !passwordInput.current.value) {
+          passwordInput.current.value = password;
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, [ready, user, remember, savedEmail]);
   useEffect(() => {
     api<User>("/auth/me")
       .then(setUser)
@@ -68,12 +84,14 @@ function App() {
     setError("");
     setBusy(true);
     try {
-      setUser(
-        await send<User>("/auth/login", {
+      const authenticated = await send<User>("/auth/login", {
           email: data.get("email"),
           password: data.get("password"),
-        }),
-      );
+        });
+      rememberEmail(remember ? authenticated.email : '');
+      setSavedEmail(remember ? authenticated.email : '');
+      if (remember) void offerPasswordSave(authenticated.email, String(data.get('password') || ''));
+      setUser(authenticated);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -118,7 +136,7 @@ function App() {
           <small>CONTROLE · HISTÓRICO · TRANQUILIDADE</small>
         </div>
         <div className="login-panel">
-          <form onSubmit={login}>
+          <form onSubmit={login} autoComplete="on">
             <span className="eyebrow">BEM-VINDO AO FROTAGEST</span>
             <h2>Vamos cuidar da sua frota.</h2>
             <p>Entre com sua conta para continuar.</p>
@@ -126,6 +144,8 @@ function App() {
               <span>E-mail</span>
               <input
                 name="email"
+                ref={emailInput}
+                defaultValue={savedEmail}
                 type="email"
                 autoComplete="username"
                 required
@@ -136,12 +156,24 @@ function App() {
               <span>Senha</span>
               <input
                 name="password"
+                ref={passwordInput}
                 type="password"
                 autoComplete="current-password"
                 required
                 placeholder="Sua senha"
               />
             </label>
+            <label className="remember-login">
+              <input type="checkbox" checked={remember} onChange={event => {
+                setRemember(event.target.checked);
+                if (!event.target.checked) {
+                  rememberEmail('');
+                  setSavedEmail('');
+                }
+              }} />
+              <span>Lembrar de mim neste aparelho</span>
+            </label>
+            <small className="remember-hint">Para preencher a senha nas próximas vezes, aceite salvá-la quando o navegador perguntar.</small>
             {error && (
               <p className="error" role="alert">
                 {error}

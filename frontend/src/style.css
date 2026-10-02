@@ -929,6 +929,23 @@ dd {
   color: #3c7955;
   font-size: 12px;
 }
+.remember-login {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  cursor: pointer;
+}
+.remember-login input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  accent-color: #195c4b;
+}
+.login-panel form > .remember-hint {
+  margin: 0 0 20px;
+  display: block;
+}
 .login {
   min-height: 100vh;
   display: grid;

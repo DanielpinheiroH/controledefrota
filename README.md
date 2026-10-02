@@ -23,6 +23,8 @@ No Linux/macOS, substitua o primeiro comando por `sh scripts/init-env.sh`; os co
 
 ## Operação
 
+No login, **Lembrar de mim neste aparelho** mantém o e-mail após entrar com sucesso. Aceite salvar a senha no gerenciador do navegador para preencher os campos nos próximos acessos. Quando suportado e autorizado pelo navegador, o app também recupera a credencial salva; a senha nunca é persistida no localStorage. Desmarcar remove o e-mail lembrado pelo app, mas senhas já salvas devem ser gerenciadas no navegador. O preenchimento pode exigir seleção da conta ou desbloqueio do aparelho. A opção não altera a duração da sessão.
+
 Para excluir um caminhão: abra **Frota → caminhão → Excluir caminhão** e confirme. Disponível para ADMIN. O veículo é inativado, sai da lista principal e mantém todo o histórico. Marque **Mostrar também caminhões excluídos/inativos** para consultá-lo ou abra **Editar caminhão** e altere o status para reativá-lo.
 
 ```sh
