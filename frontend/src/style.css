@@ -1352,3 +1352,10 @@ dd {
     overflow-wrap: anywhere;
   }
 }
+.tenant-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d5948;
+}

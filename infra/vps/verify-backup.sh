@@ -10,7 +10,7 @@ docker run -d --rm --name frotasguest-restore-check --network none --memory 512m
 trap 'docker stop frotasguest-restore-check >/dev/null' EXIT
 ready=false
 for i in $(seq 1 30); do
-  if docker exec frotasguest-restore-check pg_isready -U frotasguest -d restore_check >/dev/null 2>&1; then ready=true; break; fi
+  if docker exec frotasguest-restore-check pg_isready -h 127.0.0.1 -U frotasguest -d restore_check >/dev/null 2>&1; then ready=true; break; fi
   sleep 1
 done
 $ready

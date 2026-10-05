@@ -4,6 +4,8 @@ URL: https://frotasguest.duckdns.org. VPS srv1569990, 72.60.61.34. Projeto exclu
 
 ## Isolamento
 
+As empresas do FrotaGest usam isolamento lógico: **ID 3** para a operação existente e **ID 1** para testes. Login, usuários, relatórios e anexos são restritos à empresa. Consulte [multiempresa](../../docs/MULTI-TENANT.md), inclusive a restrição de rollback após a migração `a72b1130c901`.
+
 Compose `frotasguest`; containers `frotasguest-frontend`, `frotasguest-api`, `frotasguest-postgres`; rede `frotasguest-network`. Frontend publica somente `127.0.0.1:8060`. API 8000 e PostgreSQL 5432 são internos. Banco e usuário próprios: `frotasguest`. Bind mounts exclusivos: `data/postgres` e `data/uploads`; não há volume compartilhado com outros projetos. Não executar prune, apagar volumes, parar outros containers ou reiniciar a VPS.
 
 O Nginx preexistente permanece em 80/443. Apenas `/etc/nginx/sites-enabled/frotasguest.duckdns.org` foi adicionado, apontando para `infra/nginx-active.conf`. Backup anterior: `backups/config/nginx-before.tgz`. Certificados Let's Encrypt exclusivos em `certificates/`, renovados pelo script próprio; nenhuma configuração de outro site deve ser substituída. Valide `nginx -t` antes e depois de qualquer alteração e use somente reload, nunca restart desnecessário.

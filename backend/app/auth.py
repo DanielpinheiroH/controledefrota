@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Request
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from .db import get_db
-from .models import Session, User
+from .models import Session, User, Tenant
 
 password_hash = PasswordHash.recommended()
 DUMMY_HASH = password_hash.hash('dummy-password-for-timing-only')
@@ -22,6 +22,13 @@ def current_user(request: Request, db=Depends(get_db)):
     user = db.get(User, session.user_id)
     if not user or not user.active:
         raise HTTPException(401, 'Usuário inativo')
+    tenant = db.get(Tenant, user.tenant_id)
+    if not tenant or not tenant.active:
+        raise HTTPException(401, 'Empresa inativa')
+    expected = request.headers.get('x-frotagest-tenant')
+    if expected is not None and expected != str(user.tenant_id):
+        raise HTTPException(401, 'Empresa da sessão mudou. Entre novamente.')
+    db.info['tenant_id'] = user.tenant_id
     return user
 
 def require(permission):

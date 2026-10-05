@@ -1,3 +1,8 @@
+let sessionTenant: number | null = null;
+export function setTenantContext(tenant: number | null) {
+  sessionTenant = tenant;
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
@@ -10,6 +15,8 @@ export async function api<T>(
         ? { "Content-Type": "application/json" }
         : {}),
       "X-Requested-With": "FrotaGest",
+      ...(sessionTenant !== null && !path.startsWith('/auth/')
+        ? {'X-FrotaGest-Tenant': String(sessionTenant)} : {}),
       ...options.headers,
     },
   });

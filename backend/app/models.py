@@ -1,17 +1,26 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, JSON
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, UniqueConstraint, ForeignKeyConstraint, Numeric, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 def now():
     return datetime.now(timezone.utc)
 
-class User(Base):
+class Tenant(Base):
+    __tablename__ = 'tenants'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
+    name: Mapped[str] = mapped_column(String(120))
+    active: Mapped[bool] = mapped_column(default=True)
+
+class TenantOwned:
+    tenant_id: Mapped[int] = mapped_column(ForeignKey('tenants.id'), index=True)
+
+class User(TenantOwned, Base):
     __tablename__ = 'users'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
-    email: Mapped[str] = mapped_column(String(254), unique=True)
+    email: Mapped[str] = mapped_column(String(254))
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default='USUARIO')
     active: Mapped[bool] = mapped_column(default=True)
@@ -24,17 +33,17 @@ class Session(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
-class Truck(Base):
+class Truck(TenantOwned, Base):
     __tablename__ = 'trucks'
     id: Mapped[int] = mapped_column(primary_key=True)
-    plate: Mapped[str] = mapped_column(String(7), unique=True)
+    plate: Mapped[str] = mapped_column(String(7))
     brand: Mapped[str] = mapped_column(String(80))
     model: Mapped[str] = mapped_column(String(100))
     version: Mapped[str | None] = mapped_column(String(100))
     manufacture_year: Mapped[int | None]
     model_year: Mapped[int | None]
-    chassis: Mapped[str | None] = mapped_column(String(40), unique=True)
-    renavam: Mapped[str | None] = mapped_column(String(20), unique=True)
+    chassis: Mapped[str | None] = mapped_column(String(40))
+    renavam: Mapped[str | None] = mapped_column(String(20))
     color: Mapped[str | None] = mapped_column(String(60))
     mileage: Mapped[int] = mapped_column(default=0)
     mileage_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -45,7 +54,7 @@ class Truck(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     __table_args__ = (CheckConstraint('mileage >= 0'), CheckConstraint("status IN ('DISPONIVEL','EM_MANUTENCAO','PARADO','INATIVO')"))
 
-class MileageHistory(Base):
+class MileageHistory(TenantOwned, Base):
     __tablename__ = 'mileage_history'
     id: Mapped[int] = mapped_column(primary_key=True)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
@@ -56,7 +65,7 @@ class MileageHistory(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     __table_args__ = (CheckConstraint('mileage >= 0'),)
 
-class Workshop(Base):
+class Workshop(TenantOwned, Base):
     __tablename__ = 'workshops'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
@@ -68,7 +77,7 @@ class Workshop(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(default=True)
 
-class MaintenancePlan(Base):
+class MaintenancePlan(TenantOwned, Base):
     __tablename__ = 'maintenance_plans'
     id: Mapped[int] = mapped_column(primary_key=True)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
@@ -82,7 +91,7 @@ class MaintenancePlan(Base):
     active: Mapped[bool] = mapped_column(default=True)
     __table_args__ = (CheckConstraint('interval_km > 0 OR interval_months > 0'), CheckConstraint('interval_km IS NULL OR interval_km > 0'), CheckConstraint('interval_months IS NULL OR interval_months > 0'), CheckConstraint('baseline_km >= 0 AND warning_km >= 0 AND warning_days >= 0'))
 
-class Maintenance(Base):
+class Maintenance(TenantOwned, Base):
     __tablename__ = 'maintenance'
     id: Mapped[int] = mapped_column(primary_key=True)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
@@ -103,7 +112,7 @@ class Maintenance(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     __table_args__ = (CheckConstraint('mileage >= 0'), CheckConstraint('parts_cost >= 0 AND labor_cost >= 0 AND other_cost >= 0 AND total_cost = parts_cost + labor_cost + other_cost'), CheckConstraint("type IN ('PREVENTIVA','CORRETIVA')"), CheckConstraint("status IN ('ABERTA','AGENDADA','EM_ANDAMENTO','CONCLUIDA','CANCELADA')"))
 
-class MaintenanceService(Base):
+class MaintenanceService(TenantOwned, Base):
     __tablename__ = 'maintenance_services'
     id: Mapped[int] = mapped_column(primary_key=True)
     maintenance_id: Mapped[int] = mapped_column(ForeignKey('maintenance.id'), index=True)
@@ -111,7 +120,7 @@ class MaintenanceService(Base):
     value: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     __table_args__ = (CheckConstraint('value >= 0'),)
 
-class MaintenancePart(Base):
+class MaintenancePart(TenantOwned, Base):
     __tablename__ = 'maintenance_parts'
     id: Mapped[int] = mapped_column(primary_key=True)
     maintenance_id: Mapped[int] = mapped_column(ForeignKey('maintenance.id'), index=True)
@@ -123,7 +132,7 @@ class MaintenancePart(Base):
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     __table_args__ = (CheckConstraint('quantity > 0 AND unit_price >= 0 AND total >= 0'),)
 
-class Attachment(Base):
+class Attachment(TenantOwned, Base):
     __tablename__ = 'attachments'
     id: Mapped[int] = mapped_column(primary_key=True)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
@@ -135,7 +144,7 @@ class Attachment(Base):
     size: Mapped[int]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
-class AuditLog(Base):
+class AuditLog(TenantOwned, Base):
     __tablename__ = 'audit_logs'
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
@@ -144,3 +153,21 @@ class AuditLog(Base):
     entity_id: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+# Composite constraints also reject cross-company references at database level.
+for model in (User, Truck, MileageHistory, Workshop, MaintenancePlan, Maintenance,
+              MaintenanceService, MaintenancePart, Attachment, AuditLog):
+    table = model.__table__
+    table.append_constraint(UniqueConstraint('tenant_id', 'id', name=f'uq_{table.name}_tenant_id'))
+    for column in list(table.columns):
+        if column.name == 'tenant_id':
+            continue
+        for fk in list(column.foreign_keys):
+            parent = fk.target_fullname.split('.')[0]
+            table.append_constraint(ForeignKeyConstraint(
+                ['tenant_id', column.name], [f'{parent}.tenant_id', f'{parent}.id'],
+                name=f'fk_{table.name}_{column.name}_tenant'))
+for model, columns in ((User, ['email']), (Truck, ['plate', 'chassis', 'renavam'])):
+    for column in columns:
+        model.__table__.append_constraint(UniqueConstraint('tenant_id', column,
+            name=f'uq_{model.__tablename__}_tenant_{column}'))

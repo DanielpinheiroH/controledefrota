@@ -36,8 +36,9 @@ def client(test_engine):
     transaction = connection.begin()
     factory = sessionmaker(bind=connection, join_transaction_mode='create_savepoint', expire_on_commit=False)
     with factory() as db:
-        db.add(User(name='Admin Teste',email='admin@example.test',role='ADMIN',password_hash=password_hash.hash('TestingPassword123!')))
-        db.add(User(name='Consulta',email='reader@example.test',role='USUARIO',password_hash=password_hash.hash('TestingPassword123!')))
+        db.add(User(tenant_id=3, name='Admin Teste',email='admin@example.test',role='ADMIN',password_hash=password_hash.hash('TestingPassword123!')))
+        db.add(User(tenant_id=3, name='Consulta',email='reader@example.test',role='USUARIO',password_hash=password_hash.hash('TestingPassword123!')))
+        db.add(User(tenant_id=1, name='Admin Empresa Teste',email='admin@example.test',role='ADMIN',password_hash=password_hash.hash('TenantOnePassword!')))
         db.commit()
     def override():
         with factory() as db:

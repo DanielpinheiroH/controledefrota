@@ -20,7 +20,7 @@ import {
   ArrowUpRight,
   Download,
 } from "lucide-react";
-import { api, send } from "./api";
+import { api, send, setTenantContext } from "./api";
 import type { User } from "./types";
 import {
   DashboardPage,
@@ -43,7 +43,7 @@ import {
   WorkshopForm,
 } from "./forms";
 import "./style.css";
-import {readRememberedEmail, rememberEmail, offerPasswordSave, rememberedPassword} from './rememberLogin';
+import {readRememberedEmail, rememberEmail, offerPasswordSave, rememberedPassword, readRememberedTenant, rememberTenant} from './rememberLogin';
 
 const Auth = createContext<User | null>(null);
 export const useUser = () => useContext(Auth)!;
@@ -55,26 +55,27 @@ function App() {
     [quick, setQuick] = useState(false);
   const navigate = useNavigate();
   const [savedEmail, setSavedEmail] = useState(readRememberedEmail);
+  const [tenantId, setTenantId] = useState(readRememberedTenant);
   const [remember, setRemember] = useState(() => Boolean(readRememberedEmail()));
   const emailInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     let cancelled = false;
     if (ready && !user && remember && savedEmail) {
-      void rememberedPassword(savedEmail).then(password => {
+      void rememberedPassword(savedEmail, tenantId).then(password => {
         if (!cancelled && password && emailInput.current?.value.toLowerCase() === savedEmail.toLowerCase() && passwordInput.current && !passwordInput.current.value) {
           passwordInput.current.value = password;
         }
       });
     }
     return () => { cancelled = true; };
-  }, [ready, user, remember, savedEmail]);
+  }, [ready, user, remember, savedEmail, tenantId]);
   useEffect(() => {
     api<User>("/auth/me")
-      .then(setUser)
+      .then(authenticated => { setTenantContext(authenticated.tenant_id); setUser(authenticated); })
       .catch(() => {})
       .finally(() => setReady(true));
-    const expire = () => setUser(null);
+    const expire = () => { setTenantContext(null); setUser(null); };
     window.addEventListener("session-expired", expire);
     return () => window.removeEventListener("session-expired", expire);
   }, []);
@@ -85,12 +86,15 @@ function App() {
     setBusy(true);
     try {
       const authenticated = await send<User>("/auth/login", {
+          tenant_id: Number(tenantId),
           email: data.get("email"),
           password: data.get("password"),
         });
       rememberEmail(remember ? authenticated.email : '');
+      rememberTenant(remember ? tenantId : '');
       setSavedEmail(remember ? authenticated.email : '');
-      if (remember) void offerPasswordSave(authenticated.email, String(data.get('password') || ''));
+      if (remember) void offerPasswordSave(authenticated.email, String(data.get('password') || ''), tenantId);
+      setTenantContext(authenticated.tenant_id);
       setUser(authenticated);
     } catch (e) {
       setError((e as Error).message);
@@ -101,6 +105,7 @@ function App() {
   async function logout() {
     try {
       await send("/auth/logout", {});
+      setTenantContext(null);
       setUser(null);
       setQuick(false);
       navigate("/");
@@ -141,6 +146,13 @@ function App() {
             <h2>Vamos cuidar da sua frota.</h2>
             <p>Entre com sua conta para continuar.</p>
             <label className="field">
+              <span>ID da empresa</span>
+              <input name="tenant_id" type="number" inputMode="numeric" min="1" max="2147483647" step="1" required value={tenantId} onChange={event => {
+                setTenantId(event.target.value);
+                if (passwordInput.current) passwordInput.current.value = '';
+              }} />
+            </label>
+            <label className="field">
               <span>E-mail</span>
               <input
                 name="email"
@@ -168,6 +180,7 @@ function App() {
                 setRemember(event.target.checked);
                 if (!event.target.checked) {
                   rememberEmail('');
+                  rememberTenant('');
                   setSavedEmail('');
                 }
               }} />
@@ -199,7 +212,7 @@ function App() {
   ] as const;
   return (
     <Auth.Provider value={user}>
-      <div className="app-shell">
+      <div className="app-shell" key={user.tenant_id}>
         <aside className="sidebar">
           <Link className="brand" to="/">
             <Truck /> FrotaGest<span>GESTÃO DE MANUTENÇÃO</span>
@@ -237,7 +250,7 @@ function App() {
           <header className="topbar">
             <button className="mobile-logout" aria-label="Sair" onClick={logout}><LogOut size={18}/></button>
             <span>
-              FrotaGest <span className="muted">/ Painel da frota</span>
+              FrotaGest <span className="tenant-badge">Empresa ID {user.tenant_id}{user.tenant_id === 1 ? ' · Teste' : ''}</span>
             </span>
             <div>
               <span className="online-dot" /> Gestão de manutenção{" "}

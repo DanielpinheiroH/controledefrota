@@ -23,7 +23,7 @@ with engine.begin() as connection:
 password=secrets.token_urlsafe(24)
 email=f'e2e-{secrets.token_hex(5)}@example.test'
 with Session(engine) as db:
-    db.add(User(name='Validação E2E',email=email,role='ADMIN',password_hash=password_hash.hash(password)))
+    db.add(User(tenant_id=3,name='Validação E2E',email=email,role='ADMIN',password_hash=password_hash.hash(password)))
     db.commit()
 output=Path('/validation/e2e-credentials.json')
 output.parent.mkdir(parents=True,exist_ok=True)

@@ -1,4 +1,23 @@
 export const rememberedEmailKey = 'frotagest.remembered-email';
+const rememberedTenantKey = 'frotagest.remembered-tenant';
+
+export function readRememberedTenant(): string {
+  try {
+    const value = localStorage.getItem(rememberedTenantKey) || '3';
+    return /^[1-9]\d{0,9}$/.test(value) && Number(value) <= 2147483647 ? value : '3';
+  } catch { return '3'; }
+}
+
+export function rememberTenant(value: string): void {
+  try {
+    if (value) localStorage.setItem(rememberedTenantKey, value);
+    else localStorage.removeItem(rememberedTenantKey);
+  } catch { /* Remembering is optional. */ }
+}
+
+function credentialId(email: string, tenantId: string) {
+  return tenantId === '3' ? email : `${tenantId}:${email}`;
+}
 
 export function readRememberedEmail(): string {
   try { return localStorage.getItem(rememberedEmailKey) || ''; }
@@ -18,19 +37,19 @@ function passwordConstructor() {
   return (window as Window & {PasswordCredential?: PasswordConstructor}).PasswordCredential;
 }
 
-export async function offerPasswordSave(email: string, password: string) {
+export async function offerPasswordSave(email: string, password: string, tenantId = '3') {
   try {
     const Constructor = passwordConstructor();
     if (Constructor && navigator.credentials?.store) {
-      await navigator.credentials.store(new Constructor({id: email, password}));
+      await navigator.credentials.store(new Constructor({id: credentialId(email, tenantId), password}));
     }
   } catch { /* Saving is optional and controlled by the browser/user. */ }
 }
 
-export async function rememberedPassword(email: string): Promise<string | undefined> {
+export async function rememberedPassword(email: string, tenantId = '3'): Promise<string | undefined> {
   try {
     if (!passwordConstructor() || !navigator.credentials?.get) return;
     const entry = await navigator.credentials.get({password: true, mediation: 'silent'} as CredentialRequestOptions) as PasswordEntry | null;
-    if (entry?.type === 'password' && entry.id.toLowerCase() === email.toLowerCase()) return entry.password;
+    if (entry?.type === 'password' && entry.id.toLowerCase() === credentialId(email, tenantId).toLowerCase()) return entry.password;
   } catch { /* Fall back to normal password-manager autofill. */ }
 }

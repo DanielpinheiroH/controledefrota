@@ -1,11 +1,12 @@
 import {test,expect} from '@playwright/test';
 test('remember email after successful login, reopen and clear on opt-out',async({page})=>{
   let authenticated=false;
-  const user={id:999,name:'Remember test',email:'remember@example.test',role:'USUARIO'};
+  const user={id:999,tenant_id:1,name:'Remember test',email:'remember@example.test',role:'USUARIO'};
   await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname;
     let status=200;let body:unknown={};
     if(path==='/api/auth/login') {
+      expect(route.request().postDataJSON().tenant_id).toBe(1);
       if(route.request().postDataJSON().password==='ValidTest8') {authenticated=true;body=user;}
       else {status=401;body={detail:'E-mail ou senha inválidos'};}
     } else if(path==='/api/auth/logout') {authenticated=false;}
@@ -15,6 +16,7 @@ test('remember email after successful login, reopen and clear on opt-out',async(
   await page.goto('/usuarios');
   const remember=page.getByRole('checkbox',{name:'Lembrar de mim neste aparelho'});
   await expect(remember).not.toBeChecked();
+  await page.getByLabel('ID da empresa',{exact:true}).fill('1');
   await page.getByLabel('E-mail',{exact:true}).fill(user.email);
   await page.getByLabel('Senha',{exact:true}).fill('InvalidTest8');
   await remember.check();
@@ -24,14 +26,17 @@ test('remember email after successful login, reopen and clear on opt-out',async(
   await page.getByLabel('Senha',{exact:true}).fill('ValidTest8');
   await page.getByRole('button',{name:'Entrar no FrotaGest'}).click();
   await expect(page.getByText('Acesso reservado ao administrador.')).toBeVisible();
+  await expect(page.getByText('Empresa ID 1 · Teste')).toBeVisible();
   await page.getByRole('button',{name:'Sair',exact:true}).click();
   await expect(page.getByRole('button',{name:'Entrar no FrotaGest'})).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('E-mail',{exact:true})).toHaveValue(user.email);
+  await expect(page.getByLabel('ID da empresa',{exact:true})).toHaveValue('1');
   await expect(remember).toBeChecked();
   expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('ValidTest8');
   await remember.uncheck();
   await page.reload();
   await expect(remember).not.toBeChecked();
   await expect(page.getByLabel('E-mail',{exact:true})).toHaveValue('');
+  await expect(page.getByLabel('ID da empresa',{exact:true})).toHaveValue('3');
 });

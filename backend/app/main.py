@@ -20,11 +20,12 @@ from .models import *
 from .schemas import Login, UserInput, TruckCreate, TruckInput, MileageInput, WorkshopInput, MaintenanceInput, PlanInput
 from .auth import current_user, admin, password_hash, digest, DUMMY_HASH
 from .services import get_or_404, audit, record_mileage, plan_state, add_items
+from .tenancy import scoped, tenant_id
 from .uploads import reject_active_pdf
 
 app = FastAPI(title='FrotaGest API', version='1.0.0', docs_url=None, redoc_url=None, openapi_url='/api/openapi.json')
 origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:8088,http://127.0.0.1:8088').split(',')
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','X-Requested-With'])
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=['GET','POST','PUT','DELETE'], allow_headers=['Content-Type','X-Requested-With','X-FrotaGest-Tenant'])
 secure_cookie = os.getenv('COOKIE_SECURE', 'false').lower() == 'true'
 attempts = defaultdict(deque)
 storage = Path(os.getenv('UPLOAD_DIR', '/app/uploads'))
@@ -38,10 +39,10 @@ def serialize(obj):
 
 def maintenance_view(db, obj):
     data = serialize(obj)
-    data['services'] = [serialize(x) for x in db.scalars(select(MaintenanceService).where(MaintenanceService.maintenance_id == obj.id))]
-    data['parts'] = [serialize(x) for x in db.scalars(select(MaintenancePart).where(MaintenancePart.maintenance_id == obj.id))]
-    truck = db.get(Truck, obj.truck_id)
-    workshop = db.get(Workshop, obj.workshop_id) if obj.workshop_id else None
+    data['services'] = [serialize(x) for x in db.scalars(scoped(db, MaintenanceService).where(MaintenanceService.maintenance_id == obj.id))]
+    data['parts'] = [serialize(x) for x in db.scalars(scoped(db, MaintenancePart).where(MaintenancePart.maintenance_id == obj.id))]
+    truck = get_or_404(db, Truck, obj.truck_id)
+    workshop = get_or_404(db, Workshop, obj.workshop_id) if obj.workshop_id else None
     data.update(plate=truck.plate, workshop_name=workshop.name if workshop else None)
     return data
 
@@ -77,7 +78,8 @@ def docs():
 
 @app.post('/api/auth/login')
 def login(data: Login, request: Request, response: Response, db: Db):
-    key = (request.client.host, data.email.lower())
+    key = (request.client.host, data.tenant_id, data.email.lower())
+    db.info['tenant_id'] = data.tenant_id
     stamp = time.monotonic()
     queue = attempts[key]
     while queue and queue[0] < stamp - 300:
@@ -85,10 +87,11 @@ def login(data: Login, request: Request, response: Response, db: Db):
     if len(queue) >= 10:
         raise HTTPException(429, 'Muitas tentativas. Aguarde cinco minutos.')
     queue.append(stamp)
-    user = db.scalar(select(User).where(User.email == data.email.lower()))
+    user = db.scalar(scoped(db, User).where(User.email == data.email.lower()))
     valid = password_hash.verify(data.password, user.password_hash if user else DUMMY_HASH)
-    if not user or not valid or not user.active:
-        raise HTTPException(401, 'E-mail ou senha inválidos')
+    tenant = db.get(Tenant, data.tenant_id)
+    if not user or not valid or not user.active or not tenant or not tenant.active:
+        raise HTTPException(401, 'Empresa, e-mail ou senha inválidos')
     token = secrets.token_urlsafe(48)
     db.execute(delete(Session).where(Session.expires_at < now()))
     db.add(Session(user_id=user.id, token_hash=digest(token), expires_at=now()+timedelta(hours=12)))
@@ -110,11 +113,11 @@ def logout(request: Request, response: Response, db: Db, user: Reader):
 
 @app.get('/api/users')
 def users(db: Db, user: Writer):
-    return [serialize(x) for x in db.scalars(select(User).order_by(User.name))]
+    return [serialize(x) for x in db.scalars(scoped(db, User).order_by(User.name))]
 
 @app.post('/api/users', status_code=201)
 def create_user(data: UserInput, db: Db, user: Writer):
-    obj = User(name=data.name, email=data.email.lower(), role=data.role, password_hash=password_hash.hash(data.password))
+    obj = User(tenant_id=tenant_id(db), name=data.name, email=data.email.lower(), role=data.role, password_hash=password_hash.hash(data.password))
     if '@' not in obj.email:
         raise HTTPException(422, 'E-mail inválido')
     db.add(obj)
@@ -125,7 +128,7 @@ def create_user(data: UserInput, db: Db, user: Writer):
 
 @app.get('/api/trucks')
 def trucks(db: Db, user: Reader, q: str = '', active: bool | None = None, page: int = Query(1, ge=1), size: int = Query(30, ge=1, le=100)):
-    query = select(Truck).order_by(Truck.active.desc(), Truck.plate)
+    query = scoped(db, Truck).order_by(Truck.active.desc(), Truck.plate)
     if active is not None:
         query = query.where(Truck.active == active)
     if q:
@@ -134,7 +137,7 @@ def trucks(db: Db, user: Reader, q: str = '', active: bool | None = None, page: 
 
 @app.post('/api/trucks', status_code=201)
 def create_truck(data: TruckCreate, db: Db, user: Writer):
-    obj = Truck(**data.model_dump())
+    obj = Truck(tenant_id=tenant_id(db), **data.model_dump())
     obj.active = obj.active and obj.status != 'INATIVO'
     if not obj.active:
         obj.status = 'INATIVO'
@@ -180,15 +183,15 @@ def mileage(ident: int, data: MileageInput, db: Db, user: Writer):
 @app.get('/api/trucks/{ident}/mileage')
 def mileage_history(ident: int, db: Db, user: Reader, page: int = Query(1, ge=1), size: int = Query(30, ge=1, le=100)):
     get_or_404(db, Truck, ident)
-    return paged(db, select(MileageHistory).where(MileageHistory.truck_id == ident).order_by(MileageHistory.id.desc()), page, size)
+    return paged(db, scoped(db, MileageHistory).where(MileageHistory.truck_id == ident).order_by(MileageHistory.id.desc()), page, size)
 
 @app.get('/api/workshops')
 def workshops(db: Db, user: Reader, q: str = '', page: int = Query(1, ge=1), size: int = Query(30, ge=1, le=100)):
-    return paged(db, select(Workshop).where(Workshop.name.ilike(f'%{q}%')).order_by(Workshop.name), page, size)
+    return paged(db, scoped(db, Workshop).where(Workshop.name.ilike(f'%{q}%')).order_by(Workshop.name), page, size)
 
 @app.post('/api/workshops', status_code=201)
 def create_workshop(data: WorkshopInput, db: Db, user: Writer):
-    obj = Workshop(**data.model_dump())
+    obj = Workshop(tenant_id=tenant_id(db), **data.model_dump())
     db.add(obj)
     db.flush()
     audit(db, user, 'OFICINA_CRIADA', 'workshop', obj.id)
@@ -212,8 +215,8 @@ def deactivate_workshop(ident: int, db: Db, user: Writer):
     db.commit()
     return serialize(obj)
 
-def maintenance_query(truck_id=None, workshop_id=None, start=None, end=None, status=None):
-    query = select(Maintenance).order_by(Maintenance.date.desc(), Maintenance.id.desc())
+def maintenance_query(db, truck_id=None, workshop_id=None, start=None, end=None, status=None):
+    query = scoped(db, Maintenance).order_by(Maintenance.date.desc(), Maintenance.id.desc())
     for column, value in [(Maintenance.truck_id, truck_id), (Maintenance.workshop_id, workshop_id), (Maintenance.status, status)]:
         if value is not None:
             query = query.where(column == value)
@@ -227,7 +230,7 @@ def maintenance_query(truck_id=None, workshop_id=None, start=None, end=None, sta
 
 @app.get('/api/maintenance')
 def maintenance_list(db: Db, user: Reader, truck_id: int | None = None, workshop_id: int | None = None, start: date | None = None, end: date | None = None, status: str | None = None, page: int = Query(1, ge=1), size: int = Query(30, ge=1, le=100)):
-    query = maintenance_query(truck_id, workshop_id, start, end, status)
+    query = maintenance_query(db, truck_id, workshop_id, start, end, status)
     total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     return {'items': [maintenance_view(db, x) for x in db.scalars(query.offset((page-1)*size).limit(size))], 'total': total, 'page': page, 'size': size}
 
@@ -247,9 +250,9 @@ def resolve_workshop(db, data, user):
     name = (data.workshop_name or '').strip()
     if not name:
         return data.workshop_id
-    workshop = db.scalar(select(Workshop).where(func.lower(func.trim(Workshop.name)) == name.lower()).order_by(Workshop.id).limit(1))
+    workshop = db.scalar(scoped(db, Workshop).where(func.lower(func.trim(Workshop.name)) == name.lower()).order_by(Workshop.id).limit(1))
     if workshop is None:
-        workshop = Workshop(name=name)
+        workshop = Workshop(tenant_id=tenant_id(db), name=name)
         db.add(workshop)
         db.flush()
         audit(db, user, 'OFICINA_CRIADA', 'workshop', workshop.id)
@@ -260,7 +263,7 @@ def create_maintenance(data: MaintenanceInput, db: Db, user: Writer):
     truck = validate_maintenance(db, data)
     fields = data.model_dump(exclude={'services','parts','workshop_name'})
     fields['workshop_id'] = resolve_workshop(db, data, user)
-    obj = Maintenance(**fields, created_by=user.id)
+    obj = Maintenance(tenant_id=tenant_id(db), **fields, created_by=user.id)
     db.add(obj)
     add_items(db, obj, data)
     if obj.status == 'CONCLUIDA' and obj.mileage > truck.mileage:
@@ -287,8 +290,8 @@ def update_maintenance(ident: int, data: MaintenanceInput, db: Db, user: Writer)
     for key, value in fields.items():
         setattr(obj, key, value)
     with db.no_autoflush:
-        db.execute(delete(MaintenanceService).where(MaintenanceService.maintenance_id == ident))
-        db.execute(delete(MaintenancePart).where(MaintenancePart.maintenance_id == ident))
+        db.execute(delete(MaintenanceService).where(MaintenanceService.tenant_id == tenant_id(db), MaintenanceService.maintenance_id == ident))
+        db.execute(delete(MaintenancePart).where(MaintenancePart.tenant_id == tenant_id(db), MaintenancePart.maintenance_id == ident))
     add_items(db, obj, data)
     if obj.status == 'CONCLUIDA' and obj.mileage > truck.mileage:
         record_mileage(db, truck, obj.mileage, user, source='MANUTENCAO')
@@ -305,12 +308,12 @@ def cancel_maintenance(ident: int, db: Db, user: Writer):
     return maintenance_view(db, obj)
 
 def plans_data(db, truck_id=None, include_inactive=False):
-    query = select(MaintenancePlan).join(Truck)
+    query = scoped(db, MaintenancePlan).join(Truck, (MaintenancePlan.truck_id == Truck.id) & (MaintenancePlan.tenant_id == Truck.tenant_id))
     if not include_inactive:
         query = query.where(MaintenancePlan.active.is_(True), Truck.active.is_(True))
     if truck_id:
         query = query.where(MaintenancePlan.truck_id == truck_id)
-    return [{**serialize(p), **plan_state(db, p, db.get(Truck, p.truck_id))} for p in db.scalars(query.order_by(MaintenancePlan.id))]
+    return [{**serialize(p), **plan_state(db, p, get_or_404(db, Truck, p.truck_id))} for p in db.scalars(query.order_by(MaintenancePlan.id))]
 
 @app.get('/api/maintenance-plans')
 def plans(db: Db, user: Reader, truck_id: int | None = None):
@@ -323,7 +326,7 @@ def save_plan(db, data, user, obj=None):
     if obj and obj.truck_id != data.truck_id:
         raise HTTPException(422, 'Não é permitido trocar o caminhão do plano')
     if not obj:
-        obj = MaintenancePlan()
+        obj = MaintenancePlan(tenant_id=tenant_id(db))
         db.add(obj)
     for key, value in data.model_dump(exclude={'last_maintenance_id'}).items():
         setattr(obj, key, value)
@@ -350,12 +353,12 @@ def alerts(db: Db, user: Reader):
     return sorted(plans_data(db), key=lambda p: {'VERMELHO': 0, 'AMARELO': 1, 'VERDE': 2}[p['state']])
 
 def costs_data(db, truck_id=None, workshop_id=None, start=None, end=None):
-    rows = list(db.scalars(maintenance_query(truck_id, workshop_id, start, end, 'CONCLUIDA')))
+    rows = list(db.scalars(maintenance_query(db, truck_id, workshop_id, start, end, 'CONCLUIDA')))
     total = sum((r.total_cost for r in rows), Decimal('0'))
     by_truck, by_workshop, by_month = {}, {}, {}
     for row in rows:
-        truck = db.get(Truck, row.truck_id)
-        workshop = db.get(Workshop, row.workshop_id) if row.workshop_id else None
+        truck = get_or_404(db, Truck, row.truck_id)
+        workshop = get_or_404(db, Workshop, row.workshop_id) if row.workshop_id else None
         for group, key in [(by_truck, truck.plate), (by_workshop, workshop.name if workshop else 'Sem oficina'), (by_month, row.date.strftime('%Y-%m'))]:
             group[key] = group.get(key, Decimal('0')) + row.total_cost
     return {'total': total, 'parts': sum((r.parts_cost for r in rows), Decimal('0')), 'labor': sum((r.labor_cost for r in rows), Decimal('0')), 'other': sum((r.other_cost for r in rows), Decimal('0')), 'by_truck': by_truck, 'by_workshop': by_workshop, 'by_month': by_month}
@@ -366,10 +369,10 @@ def costs(db: Db, user: Reader, truck_id: int | None = None, workshop_id: int | 
 
 @app.get('/api/dashboard')
 def dashboard(db: Db, user: Reader):
-    trucks = list(db.scalars(select(Truck).where(Truck.active.is_(True))))
+    trucks = list(db.scalars(scoped(db, Truck).where(Truck.active.is_(True))))
     plans = plans_data(db)
     today = date.today()
-    return {'total': len(trucks), 'available': sum(t.status == 'DISPONIVEL' for t in trucks), 'maintenance': sum(t.status == 'EM_MANUTENCAO' for t in trucks), 'stopped': sum(t.status == 'PARADO' for t in trucks), 'upcoming': sum(p['state'] == 'AMARELO' for p in plans), 'overdue': sum(p['state'] == 'VERMELHO' for p in plans), 'month_cost': costs_data(db, start=today.replace(day=1), end=today)['total'], 'year_cost': costs_data(db, start=today.replace(month=1, day=1), end=today)['total'], 'alerts': sorted([p for p in plans if p['state'] != 'VERDE'], key=lambda p: p['state'] != 'VERMELHO'), 'recent': [maintenance_view(db, m) for m in db.scalars(maintenance_query().limit(5))]}
+    return {'total': len(trucks), 'available': sum(t.status == 'DISPONIVEL' for t in trucks), 'maintenance': sum(t.status == 'EM_MANUTENCAO' for t in trucks), 'stopped': sum(t.status == 'PARADO' for t in trucks), 'upcoming': sum(p['state'] == 'AMARELO' for p in plans), 'overdue': sum(p['state'] == 'VERMELHO' for p in plans), 'month_cost': costs_data(db, start=today.replace(day=1), end=today)['total'], 'year_cost': costs_data(db, start=today.replace(month=1, day=1), end=today)['total'], 'alerts': sorted([p for p in plans if p['state'] != 'VERDE'], key=lambda p: p['state'] != 'VERMELHO'), 'recent': [maintenance_view(db, m) for m in db.scalars(maintenance_query(db).limit(5))]}
 
 @app.get('/api/reports/export.xlsx')
 def export(db: Db, user: Reader, truck_id: int | None = None, start: date | None = None, end: date | None = None):
@@ -378,8 +381,8 @@ def export(db: Db, user: Reader, truck_id: int | None = None, start: date | None
     sheet = workbook.active
     sheet.title = 'Manutenções'
     sheet.append(['Data','Placa','Descrição','Status','KM','Peças','Mão de obra','Outros','Total'])
-    for row in db.scalars(maintenance_query(truck_id, start=start, end=end).limit(10000)):
-        sheet.append([row.date, db.get(Truck, row.truck_id).plate, row.description, row.status, row.mileage, row.parts_cost, row.labor_cost, row.other_cost, row.total_cost])
+    for row in db.scalars(maintenance_query(db, truck_id, start=start, end=end).limit(10000)):
+        sheet.append([row.date, get_or_404(db, Truck, row.truck_id).plate, row.description, row.status, row.mileage, row.parts_cost, row.labor_cost, row.other_cost, row.total_cost])
         for cell in sheet[sheet.max_row]:
             if cell.data_type == 'f' or isinstance(cell.value, str):
                 cell.data_type = 's'
@@ -398,7 +401,7 @@ def export(db: Db, user: Reader, truck_id: int | None = None, start: date | None
 @app.get('/api/trucks/{ident}/attachments')
 def attachments(ident: int, db: Db, user: Reader, maintenance_id: int | None = None):
     get_or_404(db, Truck, ident)
-    query = select(Attachment).where(Attachment.truck_id == ident)
+    query = scoped(db, Attachment).where(Attachment.truck_id == ident)
     if maintenance_id is not None:
         query = query.where(Attachment.maintenance_id == maintenance_id)
     return [serialize(a) for a in db.scalars(query.order_by(Attachment.id.desc()))]
@@ -440,7 +443,7 @@ async def upload(ident: int, db: Db, user: Writer, file: UploadFile = File(...),
     target = storage/key
     target.write_bytes(content)
     try:
-        obj = Attachment(truck_id=ident, maintenance_id=maintenance_id, filename=Path(file.filename or 'documento').name[:200], storage_key=key, mime=mime, kind=kind, size=len(content))
+        obj = Attachment(tenant_id=tenant_id(db), truck_id=ident, maintenance_id=maintenance_id, filename=Path(file.filename or 'documento').name[:200], storage_key=key, mime=mime, kind=kind, size=len(content))
         db.add(obj)
         db.flush()
         audit(db, user, 'DOCUMENTO_ANEXADO', 'attachment', obj.id)
@@ -457,4 +460,4 @@ def download(ident: int, db: Db, user: Reader):
 
 @app.get('/api/audit')
 def audit_list(db: Db, user: Writer, page: int = Query(1, ge=1), size: int = Query(30, ge=1, le=100)):
-    return paged(db, select(AuditLog).order_by(AuditLog.id.desc()), page, size)
+    return paged(db, scoped(db, AuditLog).order_by(AuditLog.id.desc()), page, size)

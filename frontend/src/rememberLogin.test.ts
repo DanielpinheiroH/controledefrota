@@ -24,6 +24,9 @@ it('uses the browser credential manager without persisting the password in app s
   expect(store).toHaveBeenCalledOnce();
   expect(localStorage.length).toBe(0);
   expect(await rememberedPassword('will@example.com')).toBe('sample-only');
+  expect(await rememberedPassword('will@example.com', '1')).toBeUndefined();
+  await offerPasswordSave('will@example.com','tenant-one-secret','1');
+  expect(store.mock.calls.at(-1)?.[0].id).toBe('1:will@example.com');
   expect(await rememberedPassword('other@example.com')).toBeUndefined();
   get.mockRejectedValue(new Error('denied'));
   expect(await rememberedPassword('will@example.com')).toBeUndefined();

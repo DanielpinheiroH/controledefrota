@@ -3,13 +3,14 @@ from decimal import Decimal, ROUND_HALF_UP
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
 from sqlalchemy import select
+from .tenancy import scoped, tenant_id
 from .models import AuditLog, MileageHistory, Maintenance, MaintenancePart, MaintenanceService, Truck, now
 
 def audit(db, user, action, entity, entity_id, details=None):
-    db.add(AuditLog(user_id=user.id if user else None, action=action, entity=entity, entity_id=entity_id, details=details or {}))
+    db.add(AuditLog(tenant_id=tenant_id(db), user_id=user.id if user else None, action=action, entity=entity, entity_id=entity_id, details=details or {}))
 
 def get_or_404(db, model, ident, lock=False):
-    query = select(model).where(model.id == ident)
+    query = scoped(db, model).where(model.id == ident)
     if lock:
         query = query.with_for_update()
     obj = db.scalar(query)
@@ -22,11 +23,11 @@ def record_mileage(db, truck, km, user, notes=None, source='MANUAL'):
         raise HTTPException(422, 'A quilometragem não pode ser menor que a atual')
     truck.mileage = km
     truck.mileage_updated_at = now()
-    db.add(MileageHistory(truck_id=truck.id, mileage=km, user_id=user.id, notes=notes, source=source))
+    db.add(MileageHistory(tenant_id=tenant_id(db), truck_id=truck.id, mileage=km, user_id=user.id, notes=notes, source=source))
     audit(db, user, 'KM_ATUALIZADO', 'truck', truck.id, {'mileage': km, 'source': source})
 
 def plan_state(db, plan, truck, today=None):
-    latest = db.scalar(select(Maintenance).where(Maintenance.plan_id == plan.id, Maintenance.status == 'CONCLUIDA').order_by(Maintenance.date.desc(), Maintenance.mileage.desc(), Maintenance.id.desc()))
+    latest = db.scalar(scoped(db, Maintenance).where(Maintenance.plan_id == plan.id, Maintenance.status == 'CONCLUIDA').order_by(Maintenance.date.desc(), Maintenance.mileage.desc(), Maintenance.id.desc()))
     base_km, base_date = plan.baseline_km, plan.baseline_date
     if latest and latest.date >= base_date:
         base_km, base_date = latest.mileage, latest.date
@@ -53,6 +54,6 @@ def add_items(db, maintenance, data):
         raise HTTPException(422, 'Custo total excede o limite permitido')
     db.flush()
     for service in data.services:
-        db.add(MaintenanceService(maintenance_id=maintenance.id, **service.model_dump()))
+        db.add(MaintenanceService(tenant_id=tenant_id(db), maintenance_id=maintenance.id, **service.model_dump()))
     for part in data.parts:
-        db.add(MaintenancePart(maintenance_id=maintenance.id, **part.model_dump(), total=money(part.quantity * part.unit_price)))
+        db.add(MaintenancePart(tenant_id=tenant_id(db), maintenance_id=maintenance.id, **part.model_dump(), total=money(part.quantity * part.unit_price)))

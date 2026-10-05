@@ -11,7 +11,7 @@ Text = Annotated[str, Field(min_length=1, max_length=160)]
 class Input(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
 
-class Login(Input):
+class Credentials(Input):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=False)
     email: str = Field(max_length=254)
     password: str = Field(min_length=1, max_length=128)
@@ -21,7 +21,10 @@ class Login(Input):
     def normalize_email(cls, value):
         return value.strip().lower()
 
-class UserInput(Login):
+class Login(Credentials):
+    tenant_id: int = Field(default=3, ge=1, le=2147483647)
+
+class UserInput(Credentials):
     name: str = Field(min_length=1, max_length=120)
     role: Literal['ADMIN', 'USUARIO'] = 'USUARIO'
     password: str = Field(min_length=8, max_length=128)
