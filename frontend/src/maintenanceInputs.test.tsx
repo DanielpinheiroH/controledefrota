@@ -47,6 +47,9 @@ describe('quilometragem exata',()=>{
   });
 });
 describe('total ao vivo em centavos',()=>{
+  it('preserva o total informado independentemente da quantidade e do unitário arredondado',()=>{
+    for(const quantity of ['3','20']) expect(maintenanceTotals([],[{name:'Filtro',quantity,unit_price:'33.33',total:'100.00'}],'0').total).toBe('100.00');
+  });
   it('soma peças, serviços e outros custos',()=>{
     expect(maintenanceTotals([{description:'Troca',value:'500'}],[{name:'Óleo',quantity:'20',unit_price:'35'}],'50')).toEqual({labor:'500.00',parts:'700.00',other:'50.00',total:'1250.00'});
   });

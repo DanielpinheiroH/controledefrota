@@ -46,8 +46,15 @@ def money(value):
     return value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 def add_items(db, maintenance, data):
+    parts = []
+    for part in data.parts:
+        total = part.total if part.total is not None else money(part.quantity * part.unit_price)
+        unit_price = money(total / part.quantity) if part.total is not None else part.unit_price
+        if unit_price > Decimal('999999999999.99'):
+            raise HTTPException(422, 'Valor unitário calculado excede o limite permitido')
+        parts.append({**part.model_dump(exclude={'total', 'unit_price'}), 'total': total, 'unit_price': unit_price})
     maintenance.labor_cost = sum((s.value for s in data.services), Decimal('0'))
-    maintenance.parts_cost = sum((money(p.quantity * p.unit_price) for p in data.parts), Decimal('0'))
+    maintenance.parts_cost = sum((p['total'] for p in parts), Decimal('0'))
     maintenance.other_cost = data.other_cost
     maintenance.total_cost = maintenance.labor_cost + maintenance.parts_cost + maintenance.other_cost
     if maintenance.total_cost > Decimal('999999999999.99'):
@@ -55,5 +62,5 @@ def add_items(db, maintenance, data):
     db.flush()
     for service in data.services:
         db.add(MaintenanceService(tenant_id=tenant_id(db), maintenance_id=maintenance.id, **service.model_dump()))
-    for part in data.parts:
-        db.add(MaintenancePart(tenant_id=tenant_id(db), maintenance_id=maintenance.id, **part.model_dump(), total=money(part.quantity * part.unit_price)))
+    for part in parts:
+        db.add(MaintenancePart(tenant_id=tenant_id(db), maintenance_id=maintenance.id, **part))

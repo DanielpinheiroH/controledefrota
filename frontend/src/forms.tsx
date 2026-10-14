@@ -474,7 +474,7 @@ export function MaintenanceForm() {
             reference: p.reference || null,
             manufacturer: p.manufacturer || null,
             quantity: p.quantity,
-            unit_price: p.unit_price,
+            total: p.total,
           })),
         },
         id ? "PUT" : "POST",
@@ -624,7 +624,7 @@ export function MaintenanceForm() {
           onClick={() =>
             setParts([
               ...parts,
-              { name: "", quantity: "1", unit_price: "0.00" },
+              { name: "", quantity: "1", unit_price: "0.00", total: "0.00" },
             ])
           }
         >
@@ -638,17 +638,17 @@ export function MaintenanceForm() {
             ["reference", "Referência"],
             ["manufacturer", "Fabricante"],
             ["quantity", "Quantidade"],
-            ["unit_price", "Valor unitário (R$)"],
+            ["total", "Valor total (R$)"],
           ].map(([key, label]) => (
             <Field key={key} label={label}>
               <input
                 type={
-                  ["quantity", "unit_price"].includes(key) ? "number" : "text"
+                  ["quantity", "total"].includes(key) ? "number" : "text"
                 }
                 min={key === "quantity" ? "0.001" : "0"}
                 step={key === "quantity" ? "0.001" : "0.01"}
                 required={!["reference", "manufacturer"].includes(key)}
-                value={p[key as keyof Part] || ""}
+                value={p[key as keyof Part] ?? ""}
                 onChange={(e) =>
                   setParts(
                     parts.map((x, j) =>

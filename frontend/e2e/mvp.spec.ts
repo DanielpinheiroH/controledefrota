@@ -74,7 +74,7 @@ test("complete preventive flow, forms, documents, costs and persistent history",
   await page.getByRole("button", { name: "Peça", exact: true }).click();
   await page.getByLabel("Nome", { exact: true }).fill("Óleo 15W40");
   await page.getByLabel("Quantidade", { exact: true }).fill("20");
-  await page.getByLabel("Valor unitário (R$)").fill("35");
+  await page.getByLabel("Valor total (R$)").fill("700");
   await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 1.200,00');
   await page.getByLabel("Status", { exact: true }).selectOption("ABERTA");
   await save(page);

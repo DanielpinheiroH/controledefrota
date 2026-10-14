@@ -113,6 +113,27 @@ def test_decimal_parts_services_completion_cancel(admin):
     assert admin.get('/api/reports/costs').json()['total']==0
     assert len(admin.get(f"/api/maintenance/{m['id']}").json()['parts'])==1
 
+def test_parts_exact_total_create_edit_and_reports(admin):
+    t = truck(admin)
+    m = maintenance(admin, t['id'], status='ABERTA', services=[], parts=[{'name':'Filtro','quantity':'3','total':'100.00'}])
+    assert Decimal(str(m['parts'][0]['unit_price'])) == Decimal('33.33')
+    assert Decimal(str(m['total_cost'])) == Decimal('100.00')
+    payload = {k:m[k] for k in ['truck_id','type','category','description','date','mileage']}
+    payload.update(status='CONCLUIDA', parts=[{'name':'Filtro','quantity':'3','total':'100.00'}])
+    response = admin.put(f"/api/maintenance/{m['id']}", json=payload)
+    assert response.status_code == 200, response.text
+    assert admin.get(f"/api/maintenance/{m['id']}").json()['parts'][0]['total'] == 100
+    assert admin.get('/api/reports/costs').json()['total'] == 100
+
+
+@pytest.mark.parametrize('price', [{}, {'total':'-1'}, {'total':'1.001'}, {'total':'100','unit_price':'33.33'}, {'total':'9999999999.99','quantity':'0.001'}])
+def test_invalid_part_total_rejected(admin, price):
+    t = truck(admin)
+    response = admin.post('/api/maintenance', json={'truck_id':t['id'],'type':'CORRETIVA','category':'Motor','description':'Teste','date':str(date.today()),'mileage':325000,'parts':[{'name':'Filtro','quantity':'3',**price}]})
+    assert response.status_code == 422, response.text
+    assert admin.get('/api/maintenance').json()['total'] == 0
+
+
 def test_cancel_recalculates_without_removing_history(admin):
     t=truck(admin,mileage=345500)
     p=plan(admin,t['id'])

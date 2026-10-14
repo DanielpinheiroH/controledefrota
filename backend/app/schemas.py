@@ -83,7 +83,14 @@ class PartInput(Input):
     reference: str | None = Field(None, max_length=120)
     manufacturer: str | None = Field(None, max_length=120)
     quantity: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
-    unit_price: Money
+    unit_price: Money | None = None
+    total: Money | None = None
+
+    @model_validator(mode='after')
+    def price_source(self):
+        if (self.unit_price is None) == (self.total is None):
+            raise ValueError('Informe somente o valor total ou o valor unitário da peça')
+        return self
 
 class MaintenanceInput(Input):
     truck_id: int

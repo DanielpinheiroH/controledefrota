@@ -5,6 +5,7 @@ const credentials=JSON.parse(readFileSync(resolve(process.env.E2E_CREDENTIALS ||
 
 test('200000 stays exact, workshop is typed and totals update before save',async({page},info)=>{
   await page.goto('/');
+  await page.getByLabel('ID da empresa',{exact:true}).fill(String(credentials.tenant_id || 3));
   await page.getByLabel('E-mail',{exact:true}).fill(credentials.email);
   await page.getByLabel('Senha',{exact:true}).fill(credentials.password);
   await page.getByRole('button',{name:'Entrar no FrotaGest'}).click();
@@ -51,18 +52,29 @@ test('200000 stays exact, workshop is typed and totals update before save',async
   await page.getByRole('button',{name:'Peça',exact:true}).click();
   await page.getByLabel('Nome',{exact:true}).fill('Óleo');
   await page.getByLabel('Quantidade',{exact:true}).fill('20');
-  await page.getByLabel('Valor unitário (R$)').fill('35');
+  await page.getByLabel('Valor total (R$)').fill('700');
   const other = page.getByLabel('Outros custos (R$)');
   await other.fill('');
   await other.pressSequentially('5000');
   await expect(other).toHaveValue('50,00');
   await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 1.250,00');
   await page.getByLabel('Quantidade',{exact:true}).fill('10');
-  await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 900,00');
+  await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 1.250,00');
+  await page.getByLabel('Quantidade',{exact:true}).fill('3');
+  await page.getByLabel('Valor total (R$)').fill('100');
+  await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 650,00');
+  await page.getByLabel('Status',{exact:true}).selectOption('ABERTA');
   await page.getByRole('button',{name:'Salvar registro'}).click();
   await expect(page).toHaveURL(/\/manutencoes\/\d+$/);
-  await expect(page.getByText('R$ 900,00',{exact:true})).toBeVisible();
+  await expect(page.getByText('R$ 650,00',{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('R$ 650,00',{exact:true})).toBeVisible();
   await expect(page.getByText(workshop,{exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Editar / concluir manutenção'}).click();
+  await expect(page.getByLabel('Valor total (R$)')).toHaveValue('100');
+  await page.getByRole('button',{name:'Salvar registro'}).click();
+  await expect(page).toHaveURL(/\/manutencoes\/\d+$/);
+  await expect(page.getByText('R$ 650,00',{exact:true})).toBeVisible();
   await page.goto(`/frota/${id}`);
   page.once('dialog',dialog=>dialog.dismiss());
   await page.getByRole('button',{name:'Excluir caminhão',exact:true}).click();

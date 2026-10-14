@@ -684,7 +684,7 @@ export function MaintenanceDetail() {
                         {p.reference || "Sem referência"} ·{" "}
                         {p.manufacturer || "Fabricante não informado"}
                         <br />
-                        {p.quantity} × {brl(p.unit_price)}
+                        Quantidade: {p.quantity}
                       </small>
                     </div>
                     <strong>{brl(p.total || 0)}</strong>

@@ -134,6 +134,8 @@ Cria um Scania R450, oficina, troca de óleo e plano preventivo fictícios. Não
 
 ## Fluxo preventivo
 
+Em peças, informe a quantidade e o **Valor total (R$)** daquela linha (por exemplo, 3 filtros por R$ 100,00 no total). A quantidade não multiplica novamente esse valor. O unitário é calculado internamente, preservando o total exato mesmo quando a divisão exige arredondamento. A API aceita `total` ou, para compatibilidade, `unit_price`, nunca ambos.
+
 Os campos de quilometragem exibem pontos de milhar durante a digitação (`200000` → `200.000`) e enviam o inteiro exato à API. Na manutenção, digite o nome da oficina: nomes existentes são reutilizados e novas oficinas são cadastradas na mesma transação. O resumo ao final do formulário atualiza peças, mão de obra, outros custos e total antes de salvar.
 
 Mão de obra e outros custos usam digitação por centavos: `1` → `0,01`, `12` → `0,12`, `123` → `1,23`; para R$ 500,00, digite `50000`. A vírgula e os pontos de milhar aparecem automaticamente.
