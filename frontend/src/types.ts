@@ -48,6 +48,7 @@ export interface Part {
 }
 export interface Maintenance {
   id: number;
+  can_delete: boolean;
   truck_id: number;
   workshop_id: number | null;
   plan_id: number | null;

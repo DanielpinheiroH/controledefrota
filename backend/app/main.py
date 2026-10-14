@@ -39,6 +39,8 @@ def serialize(obj):
 
 def maintenance_view(db, obj):
     data = serialize(obj)
+    latest = db.scalar(scoped(db, Maintenance).where(Maintenance.truck_id == obj.truck_id).order_by(Maintenance.date.desc(), Maintenance.id.desc()).limit(1))
+    data['can_delete'] = latest is not None and latest.id == obj.id
     data['services'] = [serialize(x) for x in db.scalars(scoped(db, MaintenanceService).where(MaintenanceService.maintenance_id == obj.id))]
     data['parts'] = [serialize(x) for x in db.scalars(scoped(db, MaintenancePart).where(MaintenancePart.maintenance_id == obj.id))]
     truck = get_or_404(db, Truck, obj.truck_id)
@@ -267,7 +269,7 @@ def create_maintenance(data: MaintenanceInput, db: Db, user: Writer):
     db.add(obj)
     add_items(db, obj, data)
     if obj.status == 'CONCLUIDA' and obj.mileage > truck.mileage:
-        record_mileage(db, truck, obj.mileage, user, source='MANUTENCAO')
+        record_mileage(db, truck, obj.mileage, user, source='MANUTENCAO', maintenance_id=obj.id)
     audit(db, user, 'MANUTENCAO_CONCLUIDA' if obj.status == 'CONCLUIDA' else 'MANUTENCAO_CRIADA', 'maintenance', obj.id)
     db.commit()
     return maintenance_view(db, obj)
@@ -294,7 +296,7 @@ def update_maintenance(ident: int, data: MaintenanceInput, db: Db, user: Writer)
         db.execute(delete(MaintenancePart).where(MaintenancePart.tenant_id == tenant_id(db), MaintenancePart.maintenance_id == ident))
     add_items(db, obj, data)
     if obj.status == 'CONCLUIDA' and obj.mileage > truck.mileage:
-        record_mileage(db, truck, obj.mileage, user, source='MANUTENCAO')
+        record_mileage(db, truck, obj.mileage, user, source='MANUTENCAO', maintenance_id=obj.id)
     audit(db, user, 'MANUTENCAO_'+('CONCLUIDA' if obj.status == 'CONCLUIDA' else 'ALTERADA'), 'maintenance', ident, {'before': jsonable_encoder(before)})
     db.commit()
     return maintenance_view(db, obj)
@@ -306,6 +308,38 @@ def cancel_maintenance(ident: int, db: Db, user: Writer):
     audit(db, user, 'MANUTENCAO_CANCELADA', 'maintenance', ident)
     db.commit()
     return maintenance_view(db, obj)
+
+@app.post('/api/maintenance/{ident}/remove')
+def remove_last_maintenance(ident: int, db: Db, user: Writer):
+    found = get_or_404(db, Maintenance, ident)
+    # Use the same lock order as create/update/KM to serialize changes for this truck.
+    truck = get_or_404(db, Truck, found.truck_id, True)
+    obj = get_or_404(db, Maintenance, ident, True)
+    latest = db.scalar(scoped(db, Maintenance).where(Maintenance.truck_id == truck.id).order_by(Maintenance.date.desc(), Maintenance.id.desc()).limit(1))
+    if latest is None or latest.id != ident:
+        raise HTTPException(409, 'Só é possível excluir a última manutenção do caminhão, por data e ordem de cadastro.')
+    before = maintenance_view(db, obj)
+    previous_km = truck.mileage
+    events = list(db.scalars(scoped(db, MileageHistory).where(
+        MileageHistory.maintenance_id == ident, MileageHistory.reverted.is_(False))))
+    for event in events:
+        event.reverted = True
+    obj.deleted = True
+    db.flush()
+    if events:
+        remaining = db.scalar(scoped(db, MileageHistory).where(
+            MileageHistory.truck_id == truck.id, MileageHistory.reverted.is_(False)
+        ).order_by(MileageHistory.id.desc()).limit(1))
+        if remaining is None:
+            raise HTTPException(409, 'Não foi encontrado o KM anterior. A exclusão não foi aplicada.')
+        truck.mileage = remaining.mileage
+        if truck.mileage != previous_km:
+            truck.mileage_updated_at = now()
+    audit(db, user, 'MANUTENCAO_EXCLUIDA', 'maintenance', ident, {
+        'before': jsonable_encoder(before), 'previous_mileage': previous_km,
+        'restored_mileage': truck.mileage, 'reverted_events': [event.id for event in events]})
+    db.commit()
+    return {'truck_id': truck.id, 'mileage': truck.mileage, 'mileage_restored': truck.mileage != previous_km}
 
 def plans_data(db, truck_id=None, include_inactive=False):
     query = scoped(db, MaintenancePlan).join(Truck, (MaintenancePlan.truck_id == Truck.id) & (MaintenancePlan.tenant_id == Truck.tenant_id))

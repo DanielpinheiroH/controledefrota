@@ -18,12 +18,12 @@ def get_or_404(db, model, ident, lock=False):
         raise HTTPException(404, 'Registro não encontrado')
     return obj
 
-def record_mileage(db, truck, km, user, notes=None, source='MANUAL'):
+def record_mileage(db, truck, km, user, notes=None, source='MANUAL', maintenance_id=None):
     if km < truck.mileage:
         raise HTTPException(422, 'A quilometragem não pode ser menor que a atual')
     truck.mileage = km
     truck.mileage_updated_at = now()
-    db.add(MileageHistory(tenant_id=tenant_id(db), truck_id=truck.id, mileage=km, user_id=user.id, notes=notes, source=source))
+    db.add(MileageHistory(tenant_id=tenant_id(db), truck_id=truck.id, mileage=km, user_id=user.id, notes=notes, source=source, maintenance_id=maintenance_id))
     audit(db, user, 'KM_ATUALIZADO', 'truck', truck.id, {'mileage': km, 'source': source})
 
 def plan_state(db, plan, truck, today=None):

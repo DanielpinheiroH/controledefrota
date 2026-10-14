@@ -1359,3 +1359,22 @@ dd {
   font-weight: 700;
   color: #1d5948;
 }
+
+.filters.maintenance-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+}
+.maintenance-filters .field,
+.maintenance-filters input,
+.maintenance-filters select {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 1000px) {
+  .filters.maintenance-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+  .filters.maintenance-filters { grid-template-columns: minmax(0, 1fr); }
+  .maintenance-filters input,
+  .maintenance-filters select { font-size: 16px; }
+}

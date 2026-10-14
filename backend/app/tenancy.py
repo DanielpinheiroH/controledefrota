@@ -10,4 +10,14 @@ def tenant_id(db):
 
 
 def scoped(db, model):
-    return select(model).where(model.tenant_id == tenant_id(db))
+    query = select(model).where(model.tenant_id == tenant_id(db))
+    if model.__tablename__ == 'maintenance':
+        query = query.where(model.deleted.is_(False))
+    elif model.__tablename__ == 'attachments':
+        from .models import Maintenance
+        visible = select(Maintenance.id).where(
+            Maintenance.id == model.maintenance_id,
+            Maintenance.tenant_id == model.tenant_id,
+            Maintenance.deleted.is_(False)).exists()
+        query = query.where(model.maintenance_id.is_(None) | visible)
+    return query

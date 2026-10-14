@@ -202,6 +202,7 @@ export function FleetPage() {
 }
 
 interface Mileage {
+  reverted: boolean;
   id: number;
   mileage: number;
   recorded_at: string;
@@ -367,6 +368,7 @@ function MileageList({ id }: { id: number }) {
                 <strong>{km(m.mileage)} km</strong>
                 <p className="muted">
                   {dateBR(m.recorded_at)} · {m.source} · Usuário #{m.user_id}
+                  {m.reverted && ' · Desfeito por exclusão da manutenção'}
                 </p>
                 {m.notes && <p>{m.notes}</p>}
               </div>
@@ -380,9 +382,8 @@ function MileageList({ id }: { id: number }) {
   );
 }
 function TruckMaintenance({ id }: { id: number }) {
-  const [page, setPage] = useState(1);
   const state = useLoad<Page<Maintenance>>(
-    `/maintenance?truck_id=${id}&page=${page}`,
+    `/maintenance?truck_id=${id}&size=5`,
   );
   return (
     <>
@@ -394,7 +395,7 @@ function TruckMaintenance({ id }: { id: number }) {
           ))}
         </div>
         {!state.data?.total && <Empty>Nenhuma manutenção registrada.</Empty>}
-        <Pager page={page} total={state.data?.total || 0} onChange={setPage} />
+        {(state.data?.total || 0) > 5 && <Link className="button" to={`/manutencoes?truck=${id}&all=1`}>Ver todas as manutenções ({state.data?.total})</Link>}
       </Loading>
     </>
   );
@@ -453,12 +454,31 @@ function TruckPlans({ id }: { id: number }) {
 }
 
 export function MaintenancePage() {
-  const [query] = useSearchParams();
+  const [query, setQuery] = useSearchParams();
+  const [trucks, setTrucks] = useState<Truck[]>([]);
+  const [truckError, setTruckError] = useState('');
+  const truckId = query.get('truck') || '';
+  const showAll = query.get('all') === '1';
+  useEffect(() => {
+    let active = true;
+    async function loadTrucks() {
+      const result: Truck[] = [];
+      for (let page = 1; active; page++) {
+        const batch = await api<Page<Truck>>(`/trucks?size=100&page=${page}`);
+        result.push(...batch.items);
+        if (result.length >= batch.total || !batch.items.length) break;
+      }
+      if (active) setTrucks(result);
+    }
+    loadTrucks().catch(error => { if (active) setTruckError(error.message); });
+    return () => { active = false; };
+  }, []);
   const [page, setPage] = useState(1),
     [status, setStatus] = useState(""),
     [start, setStart] = useState(""),
     [end, setEnd] = useState("");
-  const filter = new URLSearchParams({ page: String(page) });
+  const filter = new URLSearchParams({ page: String(showAll ? page : 1), size: String(showAll ? 30 : 5) });
+  if (truckId) filter.set('truck_id', truckId);
   if (status) filter.set("status", status);
   if (start) filter.set("start", start);
   if (end) filter.set("end", end);
@@ -471,7 +491,20 @@ export function MaintenancePage() {
         subtitle="Do agendamento ao histórico completo."
         action={<AddLink to="/manutencoes/nova">Nova manutenção</AddLink>}
       />
-      <div className="filters">
+      {truckError && <p className="error" role="alert">{truckError}</p>}
+      <div className="filters maintenance-filters">
+        <Field label="Caminhão">
+          <select value={truckId} onChange={event => {
+            const next = new URLSearchParams(query);
+            if (event.target.value) next.set('truck', event.target.value);
+            else next.delete('truck');
+            setQuery(next);
+            setPage(1);
+          }}>
+            <option value="">Todos os caminhões</option>
+            {trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.plate} · {truck.brand} {truck.model}{truck.active ? '' : ' (inativo)'}</option>)}
+          </select>
+        </Field>
         <Field label="Status">
           <select
             value={status}
@@ -522,18 +555,35 @@ export function MaintenancePage() {
           ))}
         </div>
         {!state.data?.total && <Empty>Nenhuma manutenção neste filtro.</Empty>}
-        <Pager page={page} total={state.data?.total || 0} onChange={setPage} />
+        {showAll ? <>
+          <Pager page={page} total={state.data?.total || 0} onChange={setPage} />
+          <button className="button" onClick={() => { const next = new URLSearchParams(query); next.delete('all'); setQuery(next); setPage(1); }}>Mostrar últimas 5</button>
+        </> : (state.data?.total || 0) > 5 && <button className="button" onClick={() => { const next = new URLSearchParams(query); next.set('all', '1'); setQuery(next); setPage(1); }}>Ver todas as manutenções ({state.data?.total})</button>}
       </Loading>
     </>
   );
 }
 export function MaintenanceDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [removing, setRemoving] = useState(false);
   const [revision, setRevision] = useState(0),
     [error, setError] = useState("");
   const state = useLoad<Maintenance>(`/maintenance/${id}`, revision);
   const m = state.data;
   const admin = useUser().role === "ADMIN";
+  async function removeLast() {
+    if (!m || !confirm('Excluir a última manutenção deste caminhão? Ela sairá das listagens e dos custos. O KM lançado por ela será desfeito; atualizações manuais posteriores serão preservadas. A exclusão ficará registrada na auditoria.')) return;
+    setRemoving(true);
+    setError('');
+    try {
+      await send(`/maintenance/${id}/remove`, {});
+      navigate(`/frota/${m.truck_id}?tab=manutencoes`, {replace:true});
+    } catch (e) {
+      setError((e as Error).message);
+      setRemoving(false);
+    }
+  }
   async function cancel() {
     if (
       !confirm(
@@ -649,10 +699,11 @@ export function MaintenanceDetail() {
                     </Link>
                   )}
                   {m.status !== "CANCELADA" && (
-                    <button className="danger" onClick={cancel}>
+                    <button className="danger" disabled={removing} onClick={cancel}>
                       Cancelar manutenção
                     </button>
                   )}
+                  {m.can_delete && <button className="danger" disabled={removing} onClick={removeLast}>{removing ? 'Excluindo…' : 'Excluir última manutenção'}</button>}
                 </div>
               )}
             </div>

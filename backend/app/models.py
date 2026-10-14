@@ -58,6 +58,8 @@ class MileageHistory(TenantOwned, Base):
     __tablename__ = 'mileage_history'
     id: Mapped[int] = mapped_column(primary_key=True)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
+    maintenance_id: Mapped[int | None] = mapped_column(ForeignKey('maintenance.id'), index=True)
+    reverted: Mapped[bool] = mapped_column(default=False)
     mileage: Mapped[int]
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
@@ -94,6 +96,7 @@ class MaintenancePlan(TenantOwned, Base):
 class Maintenance(TenantOwned, Base):
     __tablename__ = 'maintenance'
     id: Mapped[int] = mapped_column(primary_key=True)
+    deleted: Mapped[bool] = mapped_column(default=False)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
     workshop_id: Mapped[int | None] = mapped_column(ForeignKey('workshops.id'))
     plan_id: Mapped[int | None] = mapped_column(ForeignKey('maintenance_plans.id'), index=True)

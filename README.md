@@ -29,6 +29,10 @@ No login, **Lembrar de mim neste aparelho** mantém o e-mail após entrar com su
 
 Para excluir um caminhão: abra **Frota → caminhão → Excluir caminhão** e confirme. Disponível para ADMIN. O veículo é inativado, sai da lista principal e mantém todo o histórico. Marque **Mostrar também caminhões excluídos/inativos** para consultá-lo ou abra **Editar caminhão** e altere o status para reativá-lo.
 
+Para excluir a última manutenção: abra seu detalhe e use **Excluir última manutenção** (ADMIN). A última é definida pela data da manutenção e, em caso de empate, pela ordem de cadastro. Ela deixa de aparecer nas listagens, nos custos e no cálculo das preventivas. O KM gerado por essa manutenção é desfeito, restaurando o último lançamento válido; atualizações manuais posteriores são preservadas. A auditoria e os registros internos permanecem guardados. **Cancelar manutenção** continua sendo uma opção separada, que mantém o registro visível e não estorna o KM.
+
+O histórico do caminhão e a página de manutenções mostram inicialmente até **cinco registros**. Use **Ver todas as manutenções** para acessar o histórico completo com paginação. Na página de manutenção, combine os filtros de **caminhão**, status e período; as datas inicial e final são inclusivas e se referem à data da manutenção. Os campos ficam empilhados em celulares estreitos.
+
 ```sh
 docker compose up -d
 docker compose ps
