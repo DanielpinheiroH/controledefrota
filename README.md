@@ -33,6 +33,8 @@ Para excluir a última manutenção: abra seu detalhe e use **Excluir última ma
 
 O histórico do caminhão e a página de manutenções mostram inicialmente até **cinco registros**. Use **Ver todas as manutenções** para acessar o histórico completo com paginação. Na página de manutenção, combine os filtros de **caminhão**, status e período; as datas inicial e final são inclusivas e se referem à data da manutenção. Os campos ficam empilhados em celulares estreitos.
 
+Use **Limpar período** para deixar as duas datas em branco sem perder os demais filtros. **Limpar filtros** também remove caminhão, status e oficina e retorna à primeira página, sem sair da tela de manutenções.
+
 ```sh
 docker compose up -d
 docker compose ps

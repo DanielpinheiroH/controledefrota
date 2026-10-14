@@ -1364,6 +1364,12 @@ dd {
   display: grid;
   grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
 }
+.filter-reset-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .maintenance-filters .field,
 .maintenance-filters input,
 .maintenance-filters select {

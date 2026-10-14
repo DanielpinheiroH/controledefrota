@@ -459,6 +459,7 @@ export function MaintenancePage() {
   const [truckError, setTruckError] = useState('');
   const truckId = query.get('truck') || '';
   const showAll = query.get('all') === '1';
+  const [dateRevision, setDateRevision] = useState(0);
   useEffect(() => {
     let active = true;
     async function loadTrucks() {
@@ -477,6 +478,13 @@ export function MaintenancePage() {
     [status, setStatus] = useState(""),
     [start, setStart] = useState(""),
     [end, setEnd] = useState("");
+  function clearDates() {
+    setStart('');
+    setEnd('');
+    setPage(1);
+    // Remount native date controls to clear partially entered dates too.
+    setDateRevision(value => value + 1);
+  }
   const filter = new URLSearchParams({ page: String(showAll ? page : 1), size: String(showAll ? 30 : 5) });
   if (truckId) filter.set('truck_id', truckId);
   if (status) filter.set("status", status);
@@ -492,7 +500,14 @@ export function MaintenancePage() {
         action={<AddLink to="/manutencoes/nova">Nova manutenção</AddLink>}
       />
       {truckError && <p className="error" role="alert">{truckError}</p>}
-      <div className="filters maintenance-filters">
+      <form className="filters maintenance-filters" onSubmit={event => event.preventDefault()} onReset={() => {
+        clearDates();
+        setStatus('');
+        const next = new URLSearchParams(query);
+        next.delete('truck');
+        next.delete('workshop');
+        setQuery(next);
+      }}>
         <Field label="Caminhão">
           <select value={truckId} onChange={event => {
             const next = new URLSearchParams(query);
@@ -529,6 +544,7 @@ export function MaintenancePage() {
         </Field>
         <Field label="De">
           <input
+            key={`start-${dateRevision}`}
             type="date"
             value={start}
             onChange={(e) => {
@@ -539,6 +555,7 @@ export function MaintenancePage() {
         </Field>
         <Field label="Até">
           <input
+            key={`end-${dateRevision}`}
             type="date"
             value={end}
             onChange={(e) => {
@@ -547,7 +564,11 @@ export function MaintenancePage() {
             }}
           />
         </Field>
-      </div>
+        <div className="filter-reset-actions">
+          <button type="button" className="button" onClick={clearDates}>Limpar período</button>
+          <button type="reset" className="button">Limpar filtros</button>
+        </div>
+      </form>
       <Loading {...state}>
         <div className="grid">
           {state.data?.items.map((m) => (
