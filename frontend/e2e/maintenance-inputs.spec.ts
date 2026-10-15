@@ -52,7 +52,16 @@ test('200000 stays exact, workshop is typed and totals update before save',async
   await page.getByRole('button',{name:'Peça',exact:true}).click();
   await page.getByLabel('Nome',{exact:true}).fill('Óleo');
   await page.getByLabel('Quantidade',{exact:true}).fill('20');
-  await page.getByLabel('Valor total (R$)').fill('700');
+  const partsTotal = page.getByLabel('Valor total (R$)');
+  await expect(partsTotal).toHaveValue('0,00');
+  await partsTotal.press('End');
+  await partsTotal.pressSequentially('3');
+  await expect(partsTotal).toHaveValue('0,03');
+  await partsTotal.pressSequentially('000');
+  await expect(partsTotal).toHaveValue('30,00');
+  await partsTotal.press('Backspace');
+  await expect(partsTotal).toHaveValue('3,00');
+  await partsTotal.fill('700,00');
   const other = page.getByLabel('Outros custos (R$)');
   await other.fill('');
   await other.pressSequentially('5000');
@@ -61,7 +70,7 @@ test('200000 stays exact, workshop is typed and totals update before save',async
   await page.getByLabel('Quantidade',{exact:true}).fill('10');
   await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 1.250,00');
   await page.getByLabel('Quantidade',{exact:true}).fill('3');
-  await page.getByLabel('Valor total (R$)').fill('100');
+  await page.getByLabel('Valor total (R$)').fill('100,00');
   await expect(page.getByRole('region',{name:'Resumo de custos'})).toContainText('R$ 650,00');
   await page.getByLabel('Status',{exact:true}).selectOption('ABERTA');
   await page.getByRole('button',{name:'Salvar registro'}).click();
@@ -71,7 +80,7 @@ test('200000 stays exact, workshop is typed and totals update before save',async
   await expect(page.getByText('R$ 650,00',{exact:true})).toBeVisible();
   await expect(page.getByText(workshop,{exact:true})).toBeVisible();
   await page.getByRole('link',{name:'Editar / concluir manutenção'}).click();
-  await expect(page.getByLabel('Valor total (R$)')).toHaveValue('100');
+  await expect(page.getByLabel('Valor total (R$)')).toHaveValue('100,00');
   await page.getByRole('button',{name:'Salvar registro'}).click();
   await expect(page).toHaveURL(/\/manutencoes\/\d+$/);
   await expect(page.getByText('R$ 650,00',{exact:true})).toBeVisible();

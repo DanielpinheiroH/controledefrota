@@ -641,9 +641,10 @@ export function MaintenanceForm() {
             ["total", "Valor total (R$)"],
           ].map(([key, label]) => (
             <Field key={key} label={label}>
-              <input
+              {key === "total" ? <MoneyInput required value={p.total ?? "0.00"}
+                onChange={total => setParts(parts.map((x,j) => j === i ? {...x,total} : x))}/>: <input
                 type={
-                  ["quantity", "total"].includes(key) ? "number" : "text"
+                  key === "quantity" ? "number" : "text"
                 }
                 min={key === "quantity" ? "0.001" : "0"}
                 step={key === "quantity" ? "0.001" : "0.01"}
@@ -656,7 +657,7 @@ export function MaintenanceForm() {
                     ),
                   )
                 }
-              />
+              />}
             </Field>
           ))}
           <button

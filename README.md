@@ -138,7 +138,7 @@ Em peças, informe a quantidade e o **Valor total (R$)** daquela linha (por exem
 
 Os campos de quilometragem exibem pontos de milhar durante a digitação (`200000` → `200.000`) e enviam o inteiro exato à API. Na manutenção, digite o nome da oficina: nomes existentes são reutilizados e novas oficinas são cadastradas na mesma transação. O resumo ao final do formulário atualiza peças, mão de obra, outros custos e total antes de salvar.
 
-Mão de obra e outros custos usam digitação por centavos: `1` → `0,01`, `12` → `0,12`, `123` → `1,23`; para R$ 500,00, digite `50000`. A vírgula e os pontos de milhar aparecem automaticamente.
+Valor total das peças, mão de obra e outros custos usam digitação por centavos: `1` → `0,01`, `12` → `0,12`, `123` → `1,23`; para R$ 500,00, digite `50000`. A vírgula e os pontos de milhar aparecem automaticamente.
 
 1. Cadastre o caminhão com 325.000 km.
 2. Atualize para 330.000 km e registre a troca concluída por R$ 1.200.
