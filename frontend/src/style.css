@@ -1364,6 +1364,22 @@ dd {
   display: grid;
   grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
 }
+.filters.cost-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 1.5fr);
+}
+.cost-filters .field,
+.cost-filters input,
+.cost-filters > a {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.cost-filters > a { white-space: normal; text-align: center; }
+@media (max-width: 760px) {
+  .filters.cost-filters { grid-template-columns: minmax(0, 1fr); }
+  .cost-filters input { font-size: 16px; }
+}
 .filter-reset-actions {
   grid-column: 1 / -1;
   display: flex;

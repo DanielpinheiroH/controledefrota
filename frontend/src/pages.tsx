@@ -836,7 +836,7 @@ function CostReport({ truckId }: { truckId?: number }) {
   const c = state.data;
   return (
     <>
-      <div className="filters">
+      <div className="filters cost-filters">
         <Field label="De">
           <input
             type="date"
@@ -873,11 +873,11 @@ function CostReport({ truckId }: { truckId?: number }) {
               ))}
             </div>
             <p className="muted">
-              Valores de manutenções concluídas no período selecionado.
+              {truckId ? 'Custos somente deste caminhão: manutenções concluídas no período selecionado.' : 'Valores de manutenções concluídas no período selecionado.'}
             </p>
             <div className="grid">
               {[
-                [c.by_truck, "Por caminhão"],
+                ...(!truckId ? [[c.by_truck, "Por caminhão"]] : []),
                 [c.by_workshop, "Por oficina"],
                 [c.by_month, "Por mês"],
               ].map(([group, title]) => (
