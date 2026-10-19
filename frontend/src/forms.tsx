@@ -559,6 +559,7 @@ export function MaintenanceForm() {
           value={item?.plan_id ?? query.get("plan") ?? ""}
           items={[
             ["", "Sem plano"],
+            ...(item?.plan_deleted && item.plan_id ? [[item.plan_id, 'Plano excluído (vínculo histórico)'] as [number,string]] : []),
             ...plans
               .filter((p) => String(p.truck_id) === selected)
               .map((p) => [p.id, p.name] as [number, string]),

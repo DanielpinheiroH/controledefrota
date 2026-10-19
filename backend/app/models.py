@@ -82,6 +82,7 @@ class Workshop(TenantOwned, Base):
 class MaintenancePlan(TenantOwned, Base):
     __tablename__ = 'maintenance_plans'
     id: Mapped[int] = mapped_column(primary_key=True)
+    deleted: Mapped[bool] = mapped_column(default=False)
     truck_id: Mapped[int] = mapped_column(ForeignKey('trucks.id'), index=True)
     name: Mapped[str] = mapped_column(String(160))
     interval_km: Mapped[int | None]

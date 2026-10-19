@@ -52,6 +52,7 @@ export interface Maintenance {
   truck_id: number;
   workshop_id: number | null;
   plan_id: number | null;
+  plan_deleted?: boolean;
   type: string;
   category: string;
   description: string;

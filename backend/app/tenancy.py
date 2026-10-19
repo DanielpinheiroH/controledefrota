@@ -11,7 +11,7 @@ def tenant_id(db):
 
 def scoped(db, model):
     query = select(model).where(model.tenant_id == tenant_id(db))
-    if model.__tablename__ == 'maintenance':
+    if model.__tablename__ in ('maintenance', 'maintenance_plans'):
         query = query.where(model.deleted.is_(False))
     elif model.__tablename__ == 'attachments':
         from .models import Maintenance

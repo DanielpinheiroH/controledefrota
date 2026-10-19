@@ -68,6 +68,7 @@ def test_reader_permissions(client):
         assert client.post(path,json={}).status_code==403
     assert client.get('/api/users').status_code==403
     assert client.get('/api/audit').status_code==403
+    assert client.delete('/api/maintenance-plans/1').status_code==403
 
 def test_csrf_and_security_headers(admin):
     assert admin.post('/api/auth/logout',headers={'Origin':'https://evil.test'}).status_code==403
@@ -132,6 +133,24 @@ def test_invalid_part_total_rejected(admin, price):
     response = admin.post('/api/maintenance', json={'truck_id':t['id'],'type':'CORRETIVA','category':'Motor','description':'Teste','date':str(date.today()),'mileage':325000,'parts':[{'name':'Filtro','quantity':'3',**price}]})
     assert response.status_code == 422, response.text
     assert admin.get('/api/maintenance').json()['total'] == 0
+
+
+def test_delete_plan_preserves_history_costs_and_open_maintenance(admin):
+    t = truck(admin, mileage=330000)
+    p = plan(admin, t['id'])
+    done = maintenance(admin, t['id'], plan_id=p['id'])
+    opened = maintenance(admin, t['id'], plan_id=p['id'], status='ABERTA')
+    assert admin.delete(f"/api/maintenance-plans/{p['id']}").status_code == 200
+    assert admin.get(f"/api/maintenance-plans?truck_id={t['id']}").json() == []
+    assert admin.get('/api/alerts').json() == []
+    assert admin.get('/api/reports/costs').json()['total'] == 1200
+    assert admin.get(f"/api/maintenance/{done['id']}").json()['plan_deleted'] is True
+    payload = {k:opened[k] for k in ['truck_id','plan_id','type','category','description','date','mileage']}
+    payload['status'] = 'CONCLUIDA'
+    assert admin.put(f"/api/maintenance/{opened['id']}", json=payload).status_code == 200
+    assert admin.post('/api/maintenance', json=payload).status_code == 404
+    assert admin.delete(f"/api/maintenance-plans/{p['id']}").status_code == 404
+    assert any(a['action'] == 'PLANO_EXCLUIDO' for a in admin.get('/api/audit').json()['items'])
 
 
 def test_cancel_recalculates_without_removing_history(admin):

@@ -401,14 +401,28 @@ function TruckMaintenance({ id }: { id: number }) {
   );
 }
 function TruckPlans({ id }: { id: number }) {
-  const state = useLoad<Plan[]>(`/maintenance-plans?truck_id=${id}`);
+  const [revision,setRevision] = useState(0);
+  const [deleting,setDeleting] = useState<number|null>(null);
+  const [deleteError,setDeleteError] = useState('');
+  const state = useLoad<Plan[]>(`/maintenance-plans?truck_id=${id}`,revision);
   const admin = useUser().role === "ADMIN";
+  async function deletePlan(plan:Plan) {
+    if(!window.confirm(`Excluir o plano "${plan.name}"? Ele deixará de gerar alertas. As manutenções e o histórico serão preservados.`)) return;
+    setDeleting(plan.id);
+    setDeleteError('');
+    try {
+      await api(`/maintenance-plans/${plan.id}`,{method:'DELETE'});
+      setRevision(v=>v+1);
+    } catch(error) {setDeleteError((error as Error).message);}
+    finally {setDeleting(null);}
+  }
   return (
     <>
       <div className="section-heading">
         <h2>Plano preventivo</h2>
         <AddLink to={`/preventivas/nova?truck=${id}`}>Novo plano</AddLink>
       </div>
+      {deleteError && <p className="error" role="alert">{deleteError}</p>}
       <Loading {...state}>
         <div className="grid">
           {state.data?.map((p) => (
@@ -440,6 +454,9 @@ function TruckPlans({ id }: { id: number }) {
                   <Link to={`/preventivas/${p.id}/editar?truck=${id}`}>
                     Editar
                   </Link>
+                  <button className="danger" disabled={deleting!==null} onClick={()=>deletePlan(p)}>
+                    {deleting===p.id ? 'Excluindo…' : 'Excluir plano'}
+                  </button>
                 </div>
               )}
             </div>
@@ -653,7 +670,7 @@ export function MaintenanceDetail() {
                 <div>
                   <small>Plano preventivo</small>
                   <p>
-                    {m.plan_id ? (
+                    {m.plan_deleted ? `Plano #${m.plan_id} excluído (histórico preservado)` : m.plan_id ? (
                       <Link to={`/frota/${m.truck_id}?tab=preventivas`}>
                         Ver plano #{m.plan_id}
                       </Link>

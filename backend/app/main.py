@@ -39,6 +39,8 @@ def serialize(obj):
 
 def maintenance_view(db, obj):
     data = serialize(obj)
+    linked_plan = db.scalar(select(MaintenancePlan).where(MaintenancePlan.id == obj.plan_id, MaintenancePlan.tenant_id == tenant_id(db))) if obj.plan_id else None
+    data['plan_deleted'] = bool(linked_plan and linked_plan.deleted)
     latest = db.scalar(scoped(db, Maintenance).where(Maintenance.truck_id == obj.truck_id).order_by(Maintenance.date.desc(), Maintenance.id.desc()).limit(1))
     data['can_delete'] = latest is not None and latest.id == obj.id
     data['services'] = [serialize(x) for x in db.scalars(scoped(db, MaintenanceService).where(MaintenanceService.maintenance_id == obj.id))]
@@ -236,12 +238,17 @@ def maintenance_list(db: Db, user: Reader, truck_id: int | None = None, workshop
     total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     return {'items': [maintenance_view(db, x) for x in db.scalars(query.offset((page-1)*size).limit(size))], 'total': total, 'page': page, 'size': size}
 
-def validate_maintenance(db, data):
+def validate_maintenance(db, data, existing_plan_id=None):
     truck = get_or_404(db, Truck, data.truck_id, True)
     if data.workshop_id:
         get_or_404(db, Workshop, data.workshop_id)
     if data.plan_id:
-        plan = get_or_404(db, MaintenancePlan, data.plan_id)
+        if data.plan_id == existing_plan_id:
+            plan = db.scalar(select(MaintenancePlan).where(MaintenancePlan.id == data.plan_id, MaintenancePlan.tenant_id == tenant_id(db)))
+            if plan is None:
+                raise HTTPException(404, 'Plano não encontrado')
+        else:
+            plan = get_or_404(db, MaintenancePlan, data.plan_id)
         if plan.truck_id != data.truck_id or data.type != 'PREVENTIVA':
             raise HTTPException(422, 'Plano incompatível com o caminhão ou tipo')
     if data.status == 'CONCLUIDA' and data.date > date.today():
@@ -280,7 +287,8 @@ def maintenance_detail(ident: int, db: Db, user: Reader):
 
 @app.put('/api/maintenance/{ident}')
 def update_maintenance(ident: int, data: MaintenanceInput, db: Db, user: Writer):
-    truck = validate_maintenance(db, data)
+    existing = get_or_404(db, Maintenance, ident)
+    truck = validate_maintenance(db, data, existing.plan_id)
     obj = get_or_404(db, Maintenance, ident, True)
     if obj.status in {'CONCLUIDA','CANCELADA'}:
         raise HTTPException(409, 'Registro finalizado: preserve o histórico; cancele e registre uma correção')
@@ -381,6 +389,15 @@ def create_plan(data: PlanInput, db: Db, user: Writer):
 @app.put('/api/maintenance-plans/{ident}')
 def update_plan(ident: int, data: PlanInput, db: Db, user: Writer):
     return save_plan(db, data, user, get_or_404(db, MaintenancePlan, ident, True))
+
+@app.delete('/api/maintenance-plans/{ident}')
+def delete_plan(ident: int, db: Db, user: Writer):
+    obj = get_or_404(db, MaintenancePlan, ident, True)
+    obj.deleted = True
+    obj.active = False
+    audit(db, user, 'PLANO_EXCLUIDO', 'maintenance_plan', obj.id, {'name': obj.name, 'truck_id': obj.truck_id})
+    db.commit()
+    return {'deleted': True}
 
 @app.get('/api/alerts')
 def alerts(db: Db, user: Reader):

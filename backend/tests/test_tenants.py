@@ -53,7 +53,7 @@ def test_company_boundaries(client, first, second):
     for path in (f"trucks/{t['id']}", f"trucks/{t['id']}/mileage", f"trucks/{t['id']}/attachments",
                  f"maintenance/{m['id']}", f"attachments/{a['id']}/download"):
         assert client.get('/api/' + path).status_code == 404
-    for path in (f"trucks/{t['id']}", f"workshops/{w['id']}", f"maintenance/{m['id']}"):
+    for path in (f"trucks/{t['id']}", f"workshops/{w['id']}", f"maintenance/{m['id']}", f"maintenance-plans/{p['id']}"):
         assert client.delete('/api/' + path).status_code == 404
     assert client.post(f"/api/trucks/{t['id']}/mileage", json={'mileage':400000}).status_code == 404
     assert client.post(f"/api/trucks/{t['id']}/attachments", files={'file':('f.png', photo.getvalue(),'image/png')}).status_code == 404
