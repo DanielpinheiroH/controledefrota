@@ -460,6 +460,7 @@ export function MaintenanceForm() {
         id ? `/maintenance/${id}` : "/maintenance",
         {
           ...v,
+          category: item?.category || "Geral",
           truck_id: Number(v.truck_id),
           workshop_name: workshopName.trim() || null,
           other_cost: otherCost,
@@ -514,12 +515,6 @@ export function MaintenanceForm() {
           label="Descrição *"
           name="description"
           value={item?.description}
-          required
-        />
-        <Input
-          label="Categoria *"
-          name="category"
-          value={item?.category || "Motor"}
           required
         />
         <Input
